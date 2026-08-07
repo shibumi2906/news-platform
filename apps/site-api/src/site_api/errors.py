@@ -52,3 +52,18 @@ class IdempotencyConflictError(DomainError):
 class PayloadValidationError(DomainError):
     code = "validation_error"
     status_code = 422
+
+
+class NotFoundError(DomainError):
+    code = "not_found"
+    status_code = 404
+
+
+class ConflictError(DomainError):
+    code = "conflict"
+    status_code = 409
+
+
+class ValidationDomainError(DomainError):
+    code = "validation_error"
+    status_code = 422

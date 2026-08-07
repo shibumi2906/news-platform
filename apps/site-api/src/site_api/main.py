@@ -19,6 +19,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
 
+from site_api.api.editorial import router as editorial_router
 from site_api.api.health import router as health_router
 from site_api.api.ingestion import router as ingestion_router
 from site_api.config import Settings
@@ -96,4 +97,5 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(ingestion_router)
+    app.include_router(editorial_router)
     return app
