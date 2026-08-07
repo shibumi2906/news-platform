@@ -29,4 +29,47 @@ jobs:
         run: uv run mypy packages/python/common apps/integrator-api apps/site-api migrations/integrator/env.py migrations/site/env.py
 
       - name: Pytest
-        run: uv run pytest packages/python/common apps/integrator-api apps/site-api -q
+        run: uv run pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/public-web/package-lock.json
+
+      - name: Frontend install
+        run: npm ci --prefix apps/public-web
+
+      - name: Frontend tests, types, accessibility contracts, and build
+        run: |
+          npm test --prefix apps/public-web
+          npm run typecheck --prefix apps/public-web
+          npm run build --prefix apps/public-web
+
+  infrastructure-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.9.28"
+      - name: Install Python integration dependencies
+        run: uv sync --all-packages
+      - name: Start clean PostgreSQL, Redis, MinIO, migrations and APIs
+        run: docker compose -f deploy/compose/docker-compose.dev.yml up --build --detach --wait
+      - name: Migration and infrastructure integration gates
+        env:
+          POSTGRES_TEST_URL: postgresql://news_platform:change-me@localhost:5433/postgres
+          MINIO_TEST_URL: http://localhost:9000
+          MINIO_TEST_ACCESS_KEY: change-me
+          MINIO_TEST_SECRET_KEY: change-me
+          REDIS_TEST_URL: redis://localhost:6379/0
+        run: |
+          uv run pytest tests/integration -q
+          curl --fail http://localhost:8001/health/ready
+          curl --fail http://localhost:8002/health/ready
+          curl --fail http://localhost:3000/
+      - name: Performance smoke
+        run: python scripts/performance-smoke.py --url http://localhost:8002/health/live
+      - if: always()
+        run: docker compose -f deploy/compose/docker-compose.dev.yml down --volumes

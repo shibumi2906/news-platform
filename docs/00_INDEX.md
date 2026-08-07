@@ -19,6 +19,7 @@
 
 | Документ | Назначение | Статус |
 |---|---|---|
+| `29_PRODUCTION_HARDENING.md` | Implemented security, reliability and operations runbook | Implemented |
 | `00_INDEX.md` | Карта комплекта, правила чтения и статусы | Draft |
 | `00_GLOSSARY_AND_CONVENTIONS.md` | Единые термины, идентификаторы и соглашения | Draft |
 | `01_PRODUCT_REQUIREMENTS.md` | Полные продуктовые требования и границы системы | Draft |

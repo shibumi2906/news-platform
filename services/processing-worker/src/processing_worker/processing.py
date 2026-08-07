@@ -465,8 +465,7 @@ async def _create_event_draft(
     prompt = await _prompt(session_factory, "draft")
     draft_input = {
         "materials": [
-            {"title": item.title, "excerpt": item.excerpt, "body": item.body}
-            for item in materials
+            {"title": item.title, "excerpt": item.excerpt, "body": item.body} for item in materials
         ],
         "facts": [item.value for item in facts],
         "entities": [item.name for item in entities],
@@ -496,9 +495,7 @@ async def _create_event_draft(
         )
         raise _RecordedAIFailure("draft operation failed") from exc
     await _store_run(session_factory, prompt, "draft", draft_input, response)
-    translation_bundle = await generate_translations(
-        session_factory, materials[0], draft, gateway
-    )
+    translation_bundle = await generate_translations(session_factory, materials[0], draft, gateway)
     language_versions = {
         item.target_language_code: PackageContent(
             title=item.content.title,

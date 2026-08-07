@@ -9,7 +9,7 @@ COPY pyproject.toml uv.lock ./
 COPY packages/python/common packages/python/common
 COPY packages/python/site-domain packages/python/site-domain
 COPY services/distribution-worker services/distribution-worker
-RUN uv sync --package distribution-worker --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --package distribution-worker --no-dev
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /workspace
 USER appuser
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 \

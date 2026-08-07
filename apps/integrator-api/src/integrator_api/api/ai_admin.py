@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from common.auth import require_admin_api_token
+from common.auth import require_permission
 from common.logging import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from integrator_domain.models import (
@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(
     prefix="/api/v1/ai",
     tags=["ai-admin"],
-    dependencies=[Depends(require_admin_api_token)],
+    dependencies=[Depends(require_permission("topics:manage"))],
 )
 logger = get_logger(__name__)
 
@@ -300,9 +300,7 @@ async def create_language(payload: LanguageInput, request: Request) -> LanguageO
 
 
 @router.put("/languages/{code}", response_model=LanguageOutput)
-async def update_language(
-    code: str, payload: LanguageInput, request: Request
-) -> LanguageOutput:
+async def update_language(code: str, payload: LanguageInput, request: Request) -> LanguageOutput:
     if payload.code != code:
         raise HTTPException(422, "language code cannot be changed")
     async with request.app.state.session_factory() as session:
@@ -325,21 +323,15 @@ async def list_terminology(
     async with request.app.state.session_factory() as session:
         statement = select(TerminologyEntry).order_by(TerminologyEntry.created_at)
         if source_language:
-            statement = statement.where(
-                TerminologyEntry.source_language_code == source_language
-            )
+            statement = statement.where(TerminologyEntry.source_language_code == source_language)
         if target_language:
-            statement = statement.where(
-                TerminologyEntry.target_language_code == target_language
-            )
+            statement = statement.where(TerminologyEntry.target_language_code == target_language)
         rows = (await session.execute(statement)).scalars()
         return [TerminologyOutput.model_validate(row) for row in rows]
 
 
 @router.post("/terminology", response_model=TerminologyOutput, status_code=201)
-async def create_terminology(
-    payload: TerminologyInput, request: Request
-) -> TerminologyOutput:
+async def create_terminology(payload: TerminologyInput, request: Request) -> TerminologyOutput:
     async with request.app.state.session_factory() as session:
         await _ensure_languages_exist(
             session, payload.source_language_code, payload.target_language_code

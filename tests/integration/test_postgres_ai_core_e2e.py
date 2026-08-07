@@ -57,7 +57,10 @@ def _database_url(admin_url: str, name: str) -> str:
 
 
 def _migrate(config: str, database_url: str) -> None:
-    env = {**os.environ, "DATABASE_URL": database_url.replace("postgresql://", "postgresql+asyncpg://")}
+    env = {
+        **os.environ,
+        "DATABASE_URL": database_url.replace("postgresql://", "postgresql+asyncpg://"),
+    }
     subprocess.run(
         [sys.executable, "-m", "alembic", "-c", config, "upgrade", "head"],
         cwd=ROOT,
@@ -82,27 +85,42 @@ async def _run() -> None:
         _migrate("migrations/integrator/alembic.ini", integrator_url)
         _migrate("migrations/site/alembic.ini", site_url)
 
-        integrator_sqlalchemy_url = integrator_url.replace(
-            "postgresql://", "postgresql+asyncpg://"
-        )
+        integrator_sqlalchemy_url = integrator_url.replace("postgresql://", "postgresql+asyncpg://")
         integrator_engine = create_engine(integrator_sqlalchemy_url)
         integrator_factory = create_session_factory(integrator_engine)
         os.environ.update(
             INSTANCE_ID="11111111-1111-1111-1111-111111111111",
             INSTANCE_TYPE="integrator",
             DATABASE_URL=integrator_sqlalchemy_url,
+            ADMIN_API_TOKEN="ai-e2e-admin-token",
         )
         integrator_app = create_integrator_app()
         integrator_app.state.session_factory = integrator_factory
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=integrator_app), base_url="http://integrator"
+            transport=httpx.ASGITransport(app=integrator_app),
+            base_url="http://integrator",
+            headers={"X-Admin-Token": "ai-e2e-admin-token"},
         ) as admin_client:
             languages = await admin_client.get("/api/v1/ai/languages")
             assert languages.status_code == 200
             assert len(languages.json()) == 16
             assert {language["code"] for language in languages.json()} == {
-                "am", "ar", "de", "en", "es", "fr", "ha", "id",
-                "it", "ja", "ko", "pt-BR", "sw", "th", "vi", "zh-CN",
+                "am",
+                "ar",
+                "de",
+                "en",
+                "es",
+                "fr",
+                "ha",
+                "id",
+                "it",
+                "ja",
+                "ko",
+                "pt-BR",
+                "sw",
+                "th",
+                "vi",
+                "zh-CN",
             }
             for code, name, direction in (
                 ("en", "English", "ltr"),
@@ -252,9 +270,7 @@ async def _run() -> None:
             assert await session.scalar(select(func.count()).select_from(EventMaterial)) == 1
             assert await session.scalar(select(func.count()).select_from(DraftProvenance)) == 1
             assert await session.scalar(select(func.count()).select_from(AIOperationRun)) == 5
-            detection = (
-                await session.execute(select(MaterialLanguageDetection))
-            ).scalar_one()
+            detection = (await session.execute(select(MaterialLanguageDetection))).scalar_one()
             translation_row = (await session.execute(select(TranslationVersion))).scalar_one()
             assert detection.language_code == "en"
             assert translation_row.target_language_code == "ar"
@@ -275,6 +291,7 @@ async def _run() -> None:
             INSTANCE_ID="22222222-2222-2222-2222-222222222222",
             INSTANCE_TYPE="site",
             DATABASE_URL=site_sqlalchemy_url,
+            ADMIN_API_TOKEN="ai-e2e-admin-token",
         )
         site_app = create_site_app()
         site_app.state.settings = SiteSettings.from_env()
@@ -282,7 +299,9 @@ async def _run() -> None:
         envelope = package_row_to_envelope(package)
         body = envelope.model_dump_json().encode()
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=site_app), base_url="http://site"
+            transport=httpx.ASGITransport(app=site_app),
+            base_url="http://site",
+            headers={"X-Admin-Token": "ai-e2e-admin-token"},
         ) as site_client:
             delivery = await send_package(
                 site_client,

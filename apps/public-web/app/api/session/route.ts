@@ -1,47 +1,38 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createSessionToken, SESSION_COOKIE } from "@/lib/session-token";
+import { CSRF_COOKIE, SESSION_COOKIE, siteApiUrl } from "@/lib/session";
+import { isSameOrigin } from "@/lib/same-origin";
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return NextResponse.json({ error: "cross-site request rejected" }, { status: 403 });
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "cross-site request rejected" }, { status: 403 });
   const form = await request.formData();
+  const cookieStore = await cookies();
   if (form.get("action") === "logout") {
-    (await cookies()).delete(SESSION_COOKIE);
+    const token = cookieStore.get(SESSION_COOKIE)?.value;
+    const csrf = cookieStore.get(CSRF_COOKIE)?.value;
+    if (token && csrf) {
+      await fetch(`${siteApiUrl()}/api/v1/auth/logout`, {
+        method: "POST",
+        headers: { "X-Admin-Session": token, "X-CSRF-Token": csrf },
+      }).catch(() => undefined);
+    }
+    cookieStore.delete(SESSION_COOKIE);
+    cookieStore.delete(CSRF_COOKIE);
     return NextResponse.redirect(publicDestination("/admin/login", request), 303);
   }
-  const username = String(form.get("username") ?? "");
-  const password = String(form.get("password") ?? "");
-  const configuredUser = process.env.ADMIN_USERNAME;
-  const configuredPassword = process.env.ADMIN_PASSWORD;
-  const secret = process.env.SESSION_SECRET;
-  if (!configuredUser || !configuredPassword || !secret) {
-    return NextResponse.json({ error: "admin session is not configured" }, { status: 503 });
-  }
-  if (!safeEqual(username, configuredUser) || !safeEqual(password, configuredPassword)) {
-    return NextResponse.redirect(publicDestination("/admin/login?error=invalid", request), 303);
-  }
-  const response = NextResponse.redirect(publicDestination("/admin", request), 303);
-  response.cookies.set(SESSION_COOKIE, createSessionToken(username, secret), {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.SESSION_COOKIE_SECURE === "true",
-    path: "/",
-    maxAge: 8 * 60 * 60,
+  const response = await fetch(`${siteApiUrl()}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: String(form.get("username") ?? ""), password: String(form.get("password") ?? "") }),
+    cache: "no-store",
   });
-  return response;
-}
-
-function safeEqual(left: string, right: string): boolean {
-  const leftHash = createHash("sha256").update(left).digest();
-  const rightHash = createHash("sha256").update(right).digest();
-  return timingSafeEqual(leftHash, rightHash);
-}
-
-function sameOrigin(request: Request): boolean {
-  if (request.headers.get("sec-fetch-site") === "cross-site") return false;
-  const origin = request.headers.get("origin");
-  return origin === null || origin === new URL(request.url).origin;
+  if (!response.ok) return NextResponse.redirect(publicDestination("/admin/login?error=invalid", request), 303);
+  const payload = await response.json() as { session_token: string; csrf_token: string; expires_in: number };
+  const result = NextResponse.redirect(publicDestination("/admin", request), 303);
+  const secure = process.env.SESSION_COOKIE_SECURE === "true";
+  result.cookies.set(SESSION_COOKIE, payload.session_token, { httpOnly: true, sameSite: "strict", secure, path: "/", maxAge: payload.expires_in });
+  result.cookies.set(CSRF_COOKIE, payload.csrf_token, { httpOnly: false, sameSite: "strict", secure, path: "/", maxAge: payload.expires_in });
+  return result;
 }
 
 function publicDestination(path: string, request: Request): URL {

@@ -18,9 +18,10 @@ COPY packages/python/common packages/python/common
 COPY packages/python/contracts packages/python/contracts
 COPY packages/python/integrator-domain packages/python/integrator-domain
 COPY services/processing-worker services/processing-worker
-COPY migrations migrations
 
-RUN uv sync --package processing-worker --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --package processing-worker --no-dev
+
+COPY migrations migrations
 
 RUN useradd --create-home --uid 1000 appuser \
     && chown -R appuser:appuser /workspace

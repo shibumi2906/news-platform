@@ -107,7 +107,9 @@ class DraftProvenance(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "draft_provenance"
     __table_args__ = (
         UniqueConstraint(
-            "package_row_id", "source_material_id", "extracted_fact_id",
+            "package_row_id",
+            "source_material_id",
+            "extracted_fact_id",
             name="uq_draft_provenance_source_fact",
         ),
     )

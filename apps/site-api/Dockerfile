@@ -18,9 +18,10 @@ COPY packages/python/common packages/python/common
 COPY packages/python/contracts packages/python/contracts
 COPY packages/python/site-domain packages/python/site-domain
 COPY apps/site-api apps/site-api
-COPY migrations migrations
 
-RUN uv sync --package site-api --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --package site-api --no-dev
+
+COPY migrations migrations
 
 RUN useradd --create-home --uid 1000 appuser \
     && chown -R appuser:appuser /workspace

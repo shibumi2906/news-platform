@@ -14,13 +14,16 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
     monkeypatch.setenv("INSTANCE_ID", "11111111-1111-1111-1111-111111111111")
     monkeypatch.setenv("INSTANCE_TYPE", "integrator")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("ADMIN_API_TOKEN", "test-admin-token")
     engine: AsyncEngine = create_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
     app = create_app()
     app.state.session_factory = create_session_factory(engine)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-Admin-Token": "test-admin-token"},
     ) as test_client:
         yield test_client
     await engine.dispose()
@@ -66,9 +69,7 @@ async def test_topic_rejects_unknown_parent_category(client: httpx.AsyncClient) 
         json={
             "name": "Invalid",
             "slug": "invalid",
-            "categories": [
-                {"name": "Child", "slug": "child", "parent_slug": "missing"}
-            ],
+            "categories": [{"name": "Child", "slug": "child", "parent_slug": "missing"}],
         },
     )
     assert response.status_code == 422

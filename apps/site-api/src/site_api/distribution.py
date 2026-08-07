@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from common.logging import get_logger
+from common.logging import get_correlation_id, get_logger
 from site_domain.models import (
     ArticleTranslationVersion,
     ArticleVersion,
@@ -15,6 +15,7 @@ from site_domain.models import (
     DistributionJob,
     MediaAsset,
     Publication,
+    UnifiedJob,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -128,7 +129,25 @@ async def schedule_distribution(
     if existing is not None:
         return existing, False
     due = scheduled_at or datetime.now(UTC)
+    unified = UnifiedJob(
+        queue="distribution",
+        kind=f"publish:{channel.kind}",
+        idempotency_key=key,
+        status="scheduled",
+        payload={
+            "article_version_id": str(article_version_id),
+            "channel_id": str(channel_id),
+        },
+        scheduled_at=due,
+        next_attempt_at=due,
+        attempt_count=0,
+        max_attempts=max_attempts,
+        correlation_id=get_correlation_id(),
+    )
+    session.add(unified)
+    await session.flush()
     job = DistributionJob(
+        unified_job_id=unified.id,
         channel_id=channel_id,
         article_version_id=article_version_id,
         translation_version_id=translation_version_id,

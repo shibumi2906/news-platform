@@ -142,14 +142,20 @@ async def test_two_materials_cluster_into_versioned_draft_with_provenance(
         assert await session.scalar(select(func.count()).select_from(MaterialRelevance)) == 2
         assert await session.scalar(select(func.count()).select_from(EventMaterial)) == 2
         clustered_events = (
-            await session.execute(select(Event).where(Event.cluster_key.is_not(None)))
-        ).scalars().all()
+            (await session.execute(select(Event).where(Event.cluster_key.is_not(None))))
+            .scalars()
+            .all()
+        )
         assert len(clustered_events) == 1
         packages = (
-            await session.execute(
-                select(CanonicalNewsPackage).order_by(CanonicalNewsPackage.package_version)
+            (
+                await session.execute(
+                    select(CanonicalNewsPackage).order_by(CanonicalNewsPackage.package_version)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert [item.package_version for item in packages] == [1, 2]
         assert packages[0].package_id == packages[1].package_id
         assert len(packages[1].sources) == 2
@@ -190,9 +196,7 @@ async def test_invalid_ai_output_fails_without_losing_source(
         outbox = (await session.execute(select(OutboxEvent))).scalars().first()
         assert outbox is not None and outbox.status == "failed"
         failed_run = (
-            await session.execute(
-                select(AIOperationRun).where(AIOperationRun.status == "failed")
-            )
+            await session.execute(select(AIOperationRun).where(AIOperationRun.status == "failed"))
         ).scalar_one()
         assert failed_run.operation == "extraction"
         assert failed_run.output is None

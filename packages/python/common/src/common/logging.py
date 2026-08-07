@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from loguru import Logger, Message
 
 _correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
+_trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
 
 
 def get_correlation_id() -> str | None:
@@ -35,6 +36,14 @@ def bind_correlation_id(correlation_id: str) -> Token[str | None]:
 
 def reset_correlation_id(token: Token[str | None]) -> None:
     _correlation_id.reset(token)
+
+
+def bind_trace_id(trace_id: str) -> Token[str | None]:
+    return _trace_id.set(trace_id)
+
+
+def reset_trace_id(token: Token[str | None]) -> None:
+    _trace_id.reset(token)
 
 
 def new_correlation_id() -> str:
@@ -51,6 +60,9 @@ def _json_sink(message: Message) -> None:
     correlation_id = _correlation_id.get()
     if correlation_id is not None:
         payload["correlation_id"] = correlation_id
+    trace_id = _trace_id.get()
+    if trace_id is not None:
+        payload["trace_id"] = trace_id
     payload.update(record["extra"])
     if record["exception"] is not None:
         payload["exception"] = str(record["exception"])

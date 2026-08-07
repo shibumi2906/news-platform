@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from common.auth import require_admin_api_token
+from common.auth import require_permission
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from site_domain.models import (
@@ -31,7 +31,7 @@ from site_api.media_service import (
 router = APIRouter(
     prefix="/api/v1/admin/media",
     tags=["media"],
-    dependencies=[Depends(require_admin_api_token)],
+    dependencies=[Depends(require_permission("media:manage"))],
 )
 
 

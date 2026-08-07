@@ -6,6 +6,8 @@ const links = [
   ["Languages", "/admin/languages"], ["Glossary", "/admin/terminology"],
   ["Incoming", "/admin/incoming"], ["Articles", "/admin/articles"], ["Media", "/admin/media"],
   ["Distribution", "/admin/distribution"], ["AI telemetry", "/admin/telemetry"],
+  ["Users & roles", "/admin/security"], ["Audit log", "/admin/audit"],
+  ["Jobs & DLQ", "/admin/jobs"], ["System health", "/admin/system"],
 ];
 
 export const dynamic = "force-dynamic";

@@ -24,7 +24,10 @@ class MediaAsset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "media_asset"
     __table_args__ = (
         UniqueConstraint("bucket", "object_key", name="uq_media_asset_object"),
-        CheckConstraint("status IN ('pending', 'ready', 'rejected', 'failed', 'deleted')"),
+        CheckConstraint(
+            "status IN ('pending', 'ready', 'rejected', 'failed', 'deleted')",
+            name="media_asset_status_check",
+        ),
     )
 
     bucket: Mapped[str] = mapped_column(String(255))
@@ -73,7 +76,12 @@ class ArticleMediaLink(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class MediaGenerationRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "media_generation_run"
-    __table_args__ = (CheckConstraint("status IN ('running', 'succeeded', 'moderated', 'failed')"),)
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'moderated', 'failed')",
+            name="media_generation_run_status_check",
+        ),
+    )
 
     article_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("article_version.id"))
     operation: Mapped[str] = mapped_column(String(64))
@@ -104,7 +112,7 @@ class MemeVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "meme_version"
     __table_args__ = (
         UniqueConstraint("template_id", "version_number", name="uq_meme_template_version"),
-        CheckConstraint("mode IN ('manual', 'ai')"),
+        CheckConstraint("mode IN ('manual', 'ai')", name="meme_version_mode_check"),
     )
 
     template_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("meme_template.id"))
@@ -119,7 +127,10 @@ class MemeVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class VideoProject(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "video_project"
     __table_args__ = (
-        CheckConstraint("status IN ('draft', 'ready', 'rendering', 'rendered', 'failed')"),
+        CheckConstraint(
+            "status IN ('draft', 'ready', 'rendering', 'rendered', 'failed')",
+            name="video_project_status_check",
+        ),
     )
 
     article_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("article_version.id"))

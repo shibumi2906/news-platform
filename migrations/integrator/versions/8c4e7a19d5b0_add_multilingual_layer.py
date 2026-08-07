@@ -25,8 +25,12 @@ JSON = sa.JSON().with_variant(postgresql.JSONB(), "postgresql")
 def _identity_columns() -> list[sa.Column[object]]:
     return [
         sa.Column("id", sa.Uuid(), primary_key=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
     ]
 
 
@@ -43,14 +47,22 @@ def upgrade() -> None:
         sa.CheckConstraint("direction IN ('ltr', 'rtl')"),
     )
     rows = [
-        ("en", "English", "ltr"), ("de", "German", "ltr"),
-        ("fr", "French", "ltr"), ("es", "Spanish", "ltr"),
-        ("pt-BR", "Portuguese (Brazil)", "ltr"), ("id", "Indonesian", "ltr"),
-        ("ar", "Arabic", "rtl"), ("zh-CN", "Chinese (Simplified)", "ltr"),
-        ("ja", "Japanese", "ltr"), ("th", "Thai", "ltr"),
-        ("vi", "Vietnamese", "ltr"), ("ko", "Korean", "ltr"),
-        ("it", "Italian", "ltr"), ("sw", "Swahili", "ltr"),
-        ("ha", "Hausa", "ltr"), ("am", "Amharic", "ltr"),
+        ("en", "English", "ltr"),
+        ("de", "German", "ltr"),
+        ("fr", "French", "ltr"),
+        ("es", "Spanish", "ltr"),
+        ("pt-BR", "Portuguese (Brazil)", "ltr"),
+        ("id", "Indonesian", "ltr"),
+        ("ar", "Arabic", "rtl"),
+        ("zh-CN", "Chinese (Simplified)", "ltr"),
+        ("ja", "Japanese", "ltr"),
+        ("th", "Thai", "ltr"),
+        ("vi", "Vietnamese", "ltr"),
+        ("ko", "Korean", "ltr"),
+        ("it", "Italian", "ltr"),
+        ("sw", "Swahili", "ltr"),
+        ("ha", "Hausa", "ltr"),
+        ("am", "Amharic", "ltr"),
     ]
     op.bulk_insert(
         language,
@@ -69,36 +81,72 @@ def upgrade() -> None:
     )
     op.create_table(
         "terminology_entry",
-        sa.Column("source_language_code", sa.String(16), sa.ForeignKey("language_config.code"), nullable=False),
-        sa.Column("target_language_code", sa.String(16), sa.ForeignKey("language_config.code"), nullable=False),
+        sa.Column(
+            "source_language_code",
+            sa.String(16),
+            sa.ForeignKey("language_config.code"),
+            nullable=False,
+        ),
+        sa.Column(
+            "target_language_code",
+            sa.String(16),
+            sa.ForeignKey("language_config.code"),
+            nullable=False,
+        ),
         sa.Column("source_term", sa.String(512), nullable=False),
         sa.Column("target_term", sa.String(512), nullable=False),
         sa.Column("notes", sa.String(1000)),
         sa.Column("is_active", sa.Boolean(), server_default=sa.true(), nullable=False),
         *_identity_columns(),
         sa.UniqueConstraint(
-            "source_language_code", "target_language_code", "source_term",
+            "source_language_code",
+            "target_language_code",
+            "source_term",
             name="uq_terminology_language_term",
         ),
     )
     op.create_table(
         "material_language_detection",
-        sa.Column("source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False, unique=True),
-        sa.Column("language_code", sa.String(16), sa.ForeignKey("language_config.code"), nullable=False),
+        sa.Column(
+            "source_material_id",
+            sa.Uuid(),
+            sa.ForeignKey("source_material.id"),
+            nullable=False,
+            unique=True,
+        ),
+        sa.Column(
+            "language_code", sa.String(16), sa.ForeignKey("language_config.code"), nullable=False
+        ),
         sa.Column("confidence", sa.Float(), nullable=False),
-        sa.Column("ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False),
+        sa.Column(
+            "ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False
+        ),
         *_identity_columns(),
         sa.CheckConstraint("confidence >= 0 AND confidence <= 1"),
     )
     op.create_table(
         "translation_version",
-        sa.Column("package_row_id", sa.Uuid(), sa.ForeignKey("canonical_news_package.id"), nullable=False),
-        sa.Column("source_language_code", sa.String(16), sa.ForeignKey("language_config.code"), nullable=False),
-        sa.Column("target_language_code", sa.String(16), sa.ForeignKey("language_config.code"), nullable=False),
+        sa.Column(
+            "package_row_id", sa.Uuid(), sa.ForeignKey("canonical_news_package.id"), nullable=False
+        ),
+        sa.Column(
+            "source_language_code",
+            sa.String(16),
+            sa.ForeignKey("language_config.code"),
+            nullable=False,
+        ),
+        sa.Column(
+            "target_language_code",
+            sa.String(16),
+            sa.ForeignKey("language_config.code"),
+            nullable=False,
+        ),
         sa.Column("direction", sa.String(3), nullable=False),
         sa.Column("content", JSON, nullable=False),
         sa.Column("terminology_revision", sa.String(64), nullable=False),
-        sa.Column("ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False),
+        sa.Column(
+            "ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False
+        ),
         *_identity_columns(),
         sa.UniqueConstraint("package_row_id", "target_language_code", name="uq_translation_target"),
         sa.CheckConstraint("direction IN ('ltr', 'rtl')"),

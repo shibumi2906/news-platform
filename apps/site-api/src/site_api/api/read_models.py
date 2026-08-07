@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from common.auth import require_admin_api_token
+from common.auth import require_permission
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from site_domain.models import (
@@ -26,7 +26,7 @@ public_router = APIRouter(prefix="/api/v1/public", tags=["public"])
 admin_router = APIRouter(
     prefix="/api/v1/admin",
     tags=["site-admin"],
-    dependencies=[Depends(require_admin_api_token)],
+    dependencies=[Depends(require_permission("articles:read"))],
 )
 
 
@@ -141,8 +141,7 @@ async def list_public_categories(request: Request) -> list[PublicCategory]:
         for slug in article.taxonomy:
             counts[slug] = counts.get(slug, 0) + 1
     return [
-        PublicCategory(slug=slug, article_count=count)
-        for slug, count in sorted(counts.items())
+        PublicCategory(slug=slug, article_count=count) for slug, count in sorted(counts.items())
     ]
 
 
@@ -156,8 +155,7 @@ async def list_public_languages(request: Request) -> list[PublicLanguage]:
             translations = (
                 await session.execute(
                     select(ArticleTranslationVersion).where(
-                        ArticleTranslationVersion.article_version_id
-                        == article.article_version_id
+                        ArticleTranslationVersion.article_version_id == article.article_version_id
                     )
                 )
             ).scalars()
@@ -177,9 +175,7 @@ async def list_incoming_packages(
         packages = list(
             (
                 await session.execute(
-                    select(IncomingPackage)
-                    .order_by(IncomingPackage.updated_at.desc())
-                    .limit(limit)
+                    select(IncomingPackage).order_by(IncomingPackage.updated_at.desc()).limit(limit)
                 )
             ).scalars()
         )
@@ -237,15 +233,19 @@ async def get_admin_article(article_id: UUID, request: Request) -> AdminArticleD
             ).scalars()
         )
         version_ids = [version.id for version in versions]
-        translations = list(
-            (
-                await session.execute(
-                    select(ArticleTranslationVersion).where(
-                        ArticleTranslationVersion.article_version_id.in_(version_ids)
+        translations = (
+            list(
+                (
+                    await session.execute(
+                        select(ArticleTranslationVersion).where(
+                            ArticleTranslationVersion.article_version_id.in_(version_ids)
+                        )
                     )
-                )
-            ).scalars()
-        ) if version_ids else []
+                ).scalars()
+            )
+            if version_ids
+            else []
+        )
         tasks = list(
             (
                 await session.execute(

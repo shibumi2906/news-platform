@@ -20,7 +20,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 class LanguageConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "language_config"
-    __table_args__ = (CheckConstraint("direction IN ('ltr', 'rtl')"),)
+    __table_args__ = (
+        CheckConstraint("direction IN ('ltr', 'rtl')", name="language_config_direction_check"),
+    )
 
     code: Mapped[str] = mapped_column(String(16), unique=True)
     name: Mapped[str] = mapped_column(String(128))
@@ -51,7 +53,12 @@ class TerminologyEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class MaterialLanguageDetection(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "material_language_detection"
-    __table_args__ = (CheckConstraint("confidence >= 0 AND confidence <= 1"),)
+    __table_args__ = (
+        CheckConstraint(
+            "confidence >= 0 AND confidence <= 1",
+            name="material_language_detection_confidence_check",
+        ),
+    )
 
     source_material_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("source_material.id"), unique=True
@@ -65,7 +72,7 @@ class TranslationVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "translation_version"
     __table_args__ = (
         UniqueConstraint("package_row_id", "target_language_code", name="uq_translation_target"),
-        CheckConstraint("direction IN ('ltr', 'rtl')"),
+        CheckConstraint("direction IN ('ltr', 'rtl')", name="translation_version_direction_check"),
     )
 
     package_row_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("canonical_news_package.id"))

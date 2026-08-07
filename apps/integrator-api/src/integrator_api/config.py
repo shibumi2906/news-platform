@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from common.config import BaseAppSettings, InstanceType
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 
 
 class Settings(BaseAppSettings):
@@ -10,6 +10,14 @@ class Settings(BaseAppSettings):
 
     instance_type: InstanceType = InstanceType.INTEGRATOR
     admin_api_token: SecretStr | None = Field(default=None, alias="ADMIN_API_TOKEN")
+
+    @model_validator(mode="after")
+    def validate_integrator_production_secrets(self) -> Settings:
+        if self.app_env.lower() in {"production", "staging"} and (
+            not self.admin_api_token or len(self.admin_api_token.get_secret_value()) < 32
+        ):
+            raise ValueError("production ADMIN_API_TOKEN must contain at least 32 characters")
+        return self
 
     @classmethod
     def from_env(cls) -> Settings:

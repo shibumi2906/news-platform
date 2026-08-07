@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from common.auth import require_admin_api_token
+from common.auth import require_permission
 from fastapi import APIRouter, Depends, Query, Request
 from integrator_domain.models import AIOperationRun, CanonicalNewsPackage
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ from sqlalchemy import select
 router = APIRouter(
     prefix="/api/v1/admin",
     tags=["integrator-operations"],
-    dependencies=[Depends(require_admin_api_token)],
+    dependencies=[Depends(require_permission("system:read"))],
 )
 
 

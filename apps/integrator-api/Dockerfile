@@ -18,7 +18,7 @@ COPY packages/python/common packages/python/common
 COPY packages/python/integrator-domain packages/python/integrator-domain
 COPY apps/integrator-api apps/integrator-api
 
-RUN uv sync --package integrator-api --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --package integrator-api --no-dev
 
 RUN useradd --create-home --uid 1000 appuser \
     && chown -R appuser:appuser /workspace

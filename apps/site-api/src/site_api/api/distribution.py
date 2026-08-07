@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from common.auth import require_admin_api_token
+from common.auth import require_permission
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from site_domain.models import DistributionAttempt, DistributionChannel, DistributionJob
@@ -17,7 +17,7 @@ from site_api.distribution import create_channel, schedule_distribution, validat
 router = APIRouter(
     prefix="/api/v1/admin/distribution",
     tags=["distribution"],
-    dependencies=[Depends(require_admin_api_token)],
+    dependencies=[Depends(require_permission("distribution:manage"))],
 )
 
 

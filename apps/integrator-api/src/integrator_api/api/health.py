@@ -8,6 +8,7 @@ as a generic unavailable status only.
 from __future__ import annotations
 
 from common.db import ping
+from common.health import ping_redis
 from common.logging import get_logger
 from fastapi import APIRouter, Request, Response, status
 
@@ -25,6 +26,8 @@ async def readiness(request: Request, response: Response) -> dict[str, str]:
     engine = request.app.state.db_engine
     try:
         await ping(engine)
+        if request.app.state.settings.readiness_require_redis:
+            await ping_redis(request.app.state.settings.redis_url)
     except Exception:
         logger.warning("readiness_check_failed")
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE

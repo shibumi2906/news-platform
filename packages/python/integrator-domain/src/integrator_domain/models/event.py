@@ -28,9 +28,7 @@ class Event(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class EventMaterial(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "event_material"
-    __table_args__ = (
-        UniqueConstraint("event_id", "source_material_id", name="uq_event_material"),
-    )
+    __table_args__ = (UniqueConstraint("event_id", "source_material_id", name="uq_event_material"),)
 
     event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("event.id"))
     source_material_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_material.id"))

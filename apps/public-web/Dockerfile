@@ -13,8 +13,6 @@ ENV NEXT_PUBLIC_SITE_NAME=$NEXT_PUBLIC_SITE_NAME
 ENV NEXT_PUBLIC_WEB_URL=$NEXT_PUBLIC_WEB_URL
 ENV SITE_API_URL=http://site-api:8000
 ENV INTEGRATOR_API_URL=http://integrator-api:8000
-ENV ADMIN_API_TOKEN=build-placeholder
-ENV SESSION_SECRET=build-placeholder
 RUN npm run build
 
 FROM node:24-alpine AS runtime

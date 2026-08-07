@@ -176,9 +176,7 @@ async def _run() -> None:
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://site"
             ) as client:
-                public = await client.get(
-                    f"/api/v1/public/articles/{published_article_id}"
-                )
+                public = await client.get(f"/api/v1/public/articles/{published_article_id}")
                 assert public.status_code == 200
                 assert public.json()["title"] == "Corrected"
                 assert (await client.get("/api/v1/admin/articles")).status_code == 401

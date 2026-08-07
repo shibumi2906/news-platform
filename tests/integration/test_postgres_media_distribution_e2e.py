@@ -36,6 +36,8 @@ from site_domain.models import (
     MemeTemplate,
     Publication,
     SiteArticle,
+    UnifiedJob,
+    UnifiedJobAttempt,
     VideoProject,
 )
 from sqlalchemy import func, select
@@ -214,6 +216,9 @@ async def _run() -> None:
             assert job.status == "delivered"
             assert job.external_publication_id == "telegram-message-100"
             assert await session.scalar(select(func.count(DistributionAttempt.id))) == 1
+            unified = (await session.execute(select(UnifiedJob))).scalar_one()
+            assert unified.status == "succeeded"
+            assert await session.scalar(select(func.count(UnifiedJobAttempt.id))) == 1
             assert await session.scalar(select(func.count(MediaGenerationRun.id))) == 1
             assert await session.scalar(select(func.count(VideoProject.id))) == 1
             assert run.provider == "fake"

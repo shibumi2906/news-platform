@@ -1,0 +1,19 @@
+groups:
+  - name: news-platform
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: sum(rate(http_requests_total{status_class="5xx"}[5m])) / sum(rate(http_requests_total[5m])) > 0.02
+        for: 10m
+        labels: {severity: page}
+      - alert: ApiLatencyHigh
+        expr: rate(http_request_duration_seconds_sum[5m]) / rate(http_requests_total[5m]) > 1
+        for: 10m
+        labels: {severity: warning}
+      - alert: DeadLetterQueueNonEmpty
+        expr: background_jobs{status="dlq"} > 0
+        for: 5m
+        labels: {severity: warning}
+      - alert: ReadinessUnavailable
+        expr: probe_success{probe="readiness"} == 0
+        for: 2m
+        labels: {severity: page}

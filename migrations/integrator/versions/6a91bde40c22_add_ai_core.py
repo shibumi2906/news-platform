@@ -25,10 +25,16 @@ def _identity_columns() -> list[sa.Column[object]]:
     return [
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
         ),
     ]
 
@@ -79,7 +85,9 @@ def upgrade() -> None:
         sa.Column("operation", sa.String(64), nullable=False),
         sa.Column("provider", sa.String(64), nullable=False),
         sa.Column("model", sa.String(128), nullable=False),
-        sa.Column("prompt_version_id", sa.Uuid(), sa.ForeignKey("prompt_version.id"), nullable=False),
+        sa.Column(
+            "prompt_version_id", sa.Uuid(), sa.ForeignKey("prompt_version.id"), nullable=False
+        ),
         sa.Column("status", sa.String(32), nullable=False),
         sa.Column("input_hash", sa.String(64), nullable=False),
         sa.Column("output", JSON),
@@ -92,52 +100,72 @@ def upgrade() -> None:
     )
     op.create_table(
         "material_relevance",
-        sa.Column("source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False),
+        sa.Column(
+            "source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False
+        ),
         sa.Column("topic_id", sa.Uuid(), sa.ForeignKey("topic.id"), nullable=False),
         sa.Column("category_slug", sa.String(255)),
         sa.Column("is_relevant", sa.Boolean(), nullable=False),
         sa.Column("score", sa.Float(), nullable=False),
         sa.Column("reason", JSON, nullable=False),
-        sa.Column("ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False),
+        sa.Column(
+            "ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False
+        ),
         *_identity_columns(),
         sa.UniqueConstraint("source_material_id", "topic_id", name="uq_material_relevance_topic"),
     )
     op.create_table(
         "extracted_fact",
-        sa.Column("source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False),
+        sa.Column(
+            "source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False
+        ),
         sa.Column("statement", sa.String(), nullable=False),
         sa.Column("fact_type", sa.String(64), nullable=False),
         sa.Column("value", JSON, nullable=False),
         sa.Column("confidence", sa.Float(), nullable=False),
-        sa.Column("ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False),
+        sa.Column(
+            "ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False
+        ),
         *_identity_columns(),
     )
     op.create_table(
         "extracted_entity",
-        sa.Column("source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False),
+        sa.Column(
+            "source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False
+        ),
         sa.Column("kind", sa.String(32), nullable=False),
         sa.Column("name", sa.String(512), nullable=False),
         sa.Column("normalized_name", sa.String(512), nullable=False),
         sa.Column("confidence", sa.Float(), nullable=False),
-        sa.Column("ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False),
+        sa.Column(
+            "ai_operation_run_id", sa.Uuid(), sa.ForeignKey("ai_operation_run.id"), nullable=False
+        ),
         *_identity_columns(),
     )
     op.create_table(
         "event_material",
         sa.Column("event_id", sa.Uuid(), sa.ForeignKey("event.id"), nullable=False),
-        sa.Column("source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False),
+        sa.Column(
+            "source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False
+        ),
         sa.Column("similarity_score", sa.Float(), server_default="1", nullable=False),
         *_identity_columns(),
         sa.UniqueConstraint("event_id", "source_material_id", name="uq_event_material"),
     )
     op.create_table(
         "draft_provenance",
-        sa.Column("package_row_id", sa.Uuid(), sa.ForeignKey("canonical_news_package.id"), nullable=False),
-        sa.Column("source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False),
+        sa.Column(
+            "package_row_id", sa.Uuid(), sa.ForeignKey("canonical_news_package.id"), nullable=False
+        ),
+        sa.Column(
+            "source_material_id", sa.Uuid(), sa.ForeignKey("source_material.id"), nullable=False
+        ),
         sa.Column("extracted_fact_id", sa.Uuid(), sa.ForeignKey("extracted_fact.id")),
         *_identity_columns(),
         sa.UniqueConstraint(
-            "package_row_id", "source_material_id", "extracted_fact_id",
+            "package_row_id",
+            "source_material_id",
+            "extracted_fact_id",
             name="uq_draft_provenance_source_fact",
         ),
     )
@@ -145,8 +173,15 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     for table in (
-        "draft_provenance", "event_material", "extracted_entity", "extracted_fact",
-        "material_relevance", "ai_operation_run", "topic", "prompt_version", "prompt_template",
+        "draft_provenance",
+        "event_material",
+        "extracted_entity",
+        "extracted_fact",
+        "material_relevance",
+        "ai_operation_run",
+        "topic",
+        "prompt_version",
+        "prompt_template",
     ):
         op.drop_table(table)
     op.drop_constraint("uq_event_cluster_key", "event", type_="unique")

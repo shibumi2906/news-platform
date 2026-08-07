@@ -1,0 +1,11 @@
+{
+  "title": "News Platform / Golden Signals",
+  "schemaVersion": 39,
+  "panels": [
+    {"title": "Request rate", "type": "timeseries", "targets": [{"expr": "sum(rate(http_requests_total[5m]))"}]},
+    {"title": "5xx rate", "type": "timeseries", "targets": [{"expr": "sum(rate(http_requests_total{status_class=\"5xx\"}[5m]))"}]},
+    {"title": "Mean latency", "type": "timeseries", "targets": [{"expr": "sum(rate(http_request_duration_seconds_sum[5m])) / sum(rate(http_requests_total[5m]))"}]},
+    {"title": "In-flight requests", "type": "stat", "targets": [{"expr": "sum(http_requests_in_flight)"}]},
+    {"title": "Dead letters", "type": "stat", "targets": [{"expr": "sum(background_jobs{status=\"dlq\"})"}]}
+  ]
+}

@@ -19,7 +19,7 @@ COPY packages/python/contracts packages/python/contracts
 COPY packages/python/integrator-domain packages/python/integrator-domain
 COPY services/source-worker services/source-worker
 
-RUN uv sync --package source-worker --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --package source-worker --no-dev
 
 RUN useradd --create-home --uid 1000 appuser \
     && chown -R appuser:appuser /workspace

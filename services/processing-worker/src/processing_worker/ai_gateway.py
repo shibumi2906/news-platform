@@ -239,9 +239,9 @@ def _fake_extraction(data: dict[str, Any]) -> dict[str, Any]:
     body = str(data.get("body", ""))
     names = list(dict.fromkeys(re.findall(r"\b[A-Z][\w.-]*(?:\s+[A-Z][\w.-]*)*", title)))
     dates = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", f"{title} {body}")
-    entities = [
-        {"kind": "organization", "name": name, "confidence": 0.8} for name in names
-    ] + [{"kind": "date", "name": value, "confidence": 1.0} for value in dates]
+    entities = [{"kind": "organization", "name": name, "confidence": 0.8} for name in names] + [
+        {"kind": "date", "name": value, "confidence": 1.0} for value in dates
+    ]
     event_key_terms = sorted({name.casefold() for name in names}) or [title.casefold()[:80]]
     return {
         "facts": [

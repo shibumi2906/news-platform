@@ -123,9 +123,9 @@ async def test_openai_timeout_can_fall_back_to_fake_provider() -> None:
     fake = FakeAIProvider(
         {"draft": {"title": "T", "lead": "L", "body": "B", "summary": "S", "tags": []}}
     )
-    result = await AIGateway(
-        [openai, fake], max_attempts_per_provider=1
-    ).complete(_request("draft"))
+    result = await AIGateway([openai, fake], max_attempts_per_provider=1).complete(
+        _request("draft")
+    )
     assert result.provider == "fake"
     assert result.attempts == 2
 

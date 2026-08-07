@@ -18,9 +18,7 @@ def build_configured_gateway(settings: Settings) -> AIGateway:
         if factory is None:
             raise ValueError(f"AI provider adapter is not installed: {name}")
         providers.append(factory())
-    return AIGateway(
-        providers, max_attempts_per_provider=settings.ai_max_attempts_per_provider
-    )
+    return AIGateway(providers, max_attempts_per_provider=settings.ai_max_attempts_per_provider)
 
 
 def _openai_provider(settings: Settings) -> OpenAIResponsesProvider:

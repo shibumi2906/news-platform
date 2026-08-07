@@ -40,11 +40,15 @@ class DistributionJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint("idempotency_key", name="uq_distribution_job_idempotency"),
         CheckConstraint(
             "status IN ('scheduled', 'processing', 'retry_wait', 'delivered', "
-            "'failed', 'dlq', 'cancelled')"
+            "'failed', 'dlq', 'cancelled')",
+            name="distribution_job_status_check",
         ),
     )
 
     channel_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("distribution_channel.id"))
+    unified_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("background_job.id"), unique=True, default=None
+    )
     article_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("article_version.id"))
     translation_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("article_translation_version.id"), default=None
@@ -64,13 +68,18 @@ class DistributionJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     error_code: Mapped[str | None] = mapped_column(String(64), default=None)
     error_message: Mapped[str | None] = mapped_column(String(512), default=None)
+    lease_owner: Mapped[str | None] = mapped_column(String(128), default=None)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class DistributionAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "distribution_attempt"
     __table_args__ = (
         UniqueConstraint("job_id", "attempt_number", name="uq_distribution_attempt_number"),
-        CheckConstraint("status IN ('succeeded', 'retryable_error', 'permanent_error')"),
+        CheckConstraint(
+            "status IN ('succeeded', 'retryable_error', 'permanent_error')",
+            name="distribution_attempt_status_check",
+        ),
     )
 
     job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("distribution_job.id"))

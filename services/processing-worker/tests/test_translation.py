@@ -39,9 +39,7 @@ async def _seed(factory: async_sessionmaker[AsyncSession]) -> SourceMaterial:
                 LanguageConfig(
                     code="en", name="English", direction="ltr", translation_enabled=True
                 ),
-                LanguageConfig(
-                    code="he", name="Hebrew", direction="rtl", translation_enabled=True
-                ),
+                LanguageConfig(code="he", name="Hebrew", direction="rtl", translation_enabled=True),
             ]
         )
         session.add(
@@ -147,9 +145,7 @@ async def test_unconfigured_detected_language_is_rejected(
 ) -> None:
     material = await _seed(session_factory)
     draft = DraftOutput(title="T", lead="L", body="B", summary="S", tags=[])
-    provider = FakeAIProvider(
-        {"language_detection": {"language_code": "zz", "confidence": 0.99}}
-    )
+    provider = FakeAIProvider({"language_detection": {"language_code": "zz", "confidence": 0.99}})
     with pytest.raises(TranslationPipelineError, match="not configured"):
         await generate_translations(session_factory, material, draft, AIGateway([provider]))
     async with session_factory() as session:

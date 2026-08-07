@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from common.config import BaseAppSettings, InstanceType
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 
 
 class Settings(BaseAppSettings):
@@ -21,6 +21,27 @@ class Settings(BaseAppSettings):
     s3_region: str = Field(default="us-east-1", alias="S3_REGION")
     media_upload_max_bytes: int = Field(default=10_485_760, alias="MEDIA_UPLOAD_MAX_BYTES")
     media_attempts_per_provider: int = Field(default=2, alias="MEDIA_ATTEMPTS_PER_PROVIDER")
+    admin_bootstrap_username: str | None = Field(default=None, alias="ADMIN_BOOTSTRAP_USERNAME")
+    admin_bootstrap_password: SecretStr | None = Field(
+        default=None, alias="ADMIN_BOOTSTRAP_PASSWORD"
+    )
+    auth_login_attempts_per_minute: int = Field(default=10, alias="AUTH_LOGIN_ATTEMPTS_PER_MINUTE")
+
+    @model_validator(mode="after")
+    def validate_site_production_secrets(self) -> Settings:
+        if self.app_env.lower() not in {"production", "staging"}:
+            return self
+        secrets = [self.s3_access_key.get_secret_value(), self.s3_secret_key.get_secret_value()]
+        if any("change-me" in value or len(value) < 12 for value in secrets):
+            raise ValueError("production object-storage credentials are unsafe")
+        if not self.admin_api_token or len(self.admin_api_token.get_secret_value()) < 32:
+            raise ValueError("production ADMIN_API_TOKEN must contain at least 32 characters")
+        if (
+            not self.admin_bootstrap_password
+            or len(self.admin_bootstrap_password.get_secret_value()) < 12
+        ):
+            raise ValueError("production bootstrap password must contain at least 12 characters")
+        return self
 
     @classmethod
     def from_env(cls) -> Settings:

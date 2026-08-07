@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 
 async function mutate(system: "site" | "integrator", path: string, method: string, body: unknown) {
+  const csrf = document.cookie.split("; ").find((item) => item.startsWith("news_admin_csrf="))?.split("=", 2)[1];
   const response = await fetch(`/api/admin/${system}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(csrf ? { "X-CSRF-Token": decodeURIComponent(csrf) } : {}) },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -111,4 +112,25 @@ export function DistributionScheduleForm({ channels }: { channels: Array<{ id: s
 
 export function DistributionChannelState({ id, active }: { id: string; active: boolean }) {
   return <MutationForm label={active ? "Deactivate" : "Activate"} onSubmit={() => mutate("site", `/api/v1/admin/distribution/channels/${id}/${active ? "deactivate" : "activate"}`, "POST", {}).then(() => undefined)}><span /></MutationForm>;
+}
+
+export function UserCreateForm({ roles }: { roles: Array<{ id: string; name: string }> }) {
+  return <MutationForm label="Create user" onSubmit={(data) => mutate("site", "/api/v1/admin/security/users", "POST", {
+    username: data.get("username"), display_name: data.get("display_name"), password: data.get("password"),
+    role_ids: data.getAll("role_ids"), mfa_required: data.get("mfa_required") === "on",
+  }).then(() => undefined)}><label>Username<input name="username" required pattern="[A-Za-z0-9._-]{2,128}" /></label><label>Display name<input name="display_name" required /></label><label>Initial password<input name="password" type="password" minLength={12} required /></label><fieldset><legend>Roles</legend>{roles.map((role) => <label key={role.id}><input type="checkbox" name="role_ids" value={role.id} />{role.name}</label>)}</fieldset><label><input name="mfa_required" type="checkbox" /> Require MFA enrollment</label></MutationForm>;
+}
+
+export function UserStateForm({ id, active }: { id: string; active: boolean }) {
+  return <MutationForm label={active ? "Deactivate" : "Activate"} onSubmit={() => mutate("site", `/api/v1/admin/security/users/${id}/${active ? "deactivate" : "activate"}`, "POST", {}).then(() => undefined)}><span /></MutationForm>;
+}
+
+export function RoleCreateForm({ permissions }: { permissions: Array<{ code: string; description?: string }> }) {
+  return <MutationForm label="Create role" onSubmit={(data) => mutate("site", "/api/v1/admin/security/roles", "POST", {
+    name: data.get("name"), description: data.get("description") || null, permission_codes: data.getAll("permission_codes"),
+  }).then(() => undefined)}><label>Role name<input name="name" required minLength={2} /></label><label>Description<input name="description" /></label><fieldset><legend>Permissions</legend>{permissions.map((permission) => <label key={permission.code}><input type="checkbox" name="permission_codes" value={permission.code} />{permission.code}</label>)}</fieldset></MutationForm>;
+}
+
+export function DlqReplayForm({ id }: { id: string }) {
+  return <MutationForm label="Replay" onSubmit={() => mutate("site", `/api/v1/admin/system/dlq/${id}/replay`, "POST", {}).then(() => undefined)}><span /></MutationForm>;
 }
