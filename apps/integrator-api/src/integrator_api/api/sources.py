@@ -33,6 +33,8 @@ class SourceOutput(SourceInput):
 async def create(payload: SourceInput, request: Request) -> SourceOutput:
     if payload.adapter_type not in {"rss", "html"}:
         raise HTTPException(422, "adapter type is not implemented")
+    if payload.feed_url.username is not None or payload.feed_url.password is not None:
+        raise HTTPException(422, "source URL credentials must use external secret storage")
     async with request.app.state.session_factory() as session:
         source = Source(
             name=payload.name,

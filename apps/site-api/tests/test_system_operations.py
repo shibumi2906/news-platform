@@ -7,6 +7,7 @@ from uuid import UUID
 import httpx
 import pytest
 from common.db import Base, create_engine, create_session_factory
+from site_api.api.system import build_job_metrics_collector
 from site_api.main import create_app
 from site_api.storage import MemoryObjectStorage
 from site_domain.models import DeadLetter, DistributionJob, UnifiedJob
@@ -62,6 +63,7 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
     app = create_app()
     app.state.db_engine = engine
     app.state.session_factory = factory
+    app.state.metrics_collector = build_job_metrics_collector(factory)
     app.state.object_storage = MemoryObjectStorage()
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
@@ -82,6 +84,8 @@ async def test_system_status_dlq_listing_and_replay(client: httpx.AsyncClient) -
     replayed = await client.post(f"/api/v1/admin/system/dlq/{letters[0]['id']}/replay")
     assert replayed.status_code == 200
     assert replayed.json()["status"] == "scheduled"
+    assert replayed.json()["attempt_count"] == 3
+    assert replayed.json()["max_attempts"] == 4
     assert (await client.get("/api/v1/admin/system/dlq")).json() == []
 
 
@@ -102,3 +106,4 @@ async def test_request_and_trace_ids_are_validated_and_metrics_exported(
     assert invalid.headers["x-request-id"] != "private data"
     metrics = await client.get("/metrics")
     assert "http_requests_total" in metrics.text
+    assert 'background_jobs{status="dlq"} 1' in metrics.text

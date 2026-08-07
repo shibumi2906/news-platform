@@ -28,6 +28,10 @@ class UnifiedJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "'failed', 'dlq', 'cancelled')",
             name="background_job_status_check",
         ),
+        CheckConstraint(
+            "attempt_count >= 0 AND max_attempts > 0 AND attempt_count <= max_attempts",
+            name="background_job_attempt_budget_check",
+        ),
     )
 
     queue: Mapped[str] = mapped_column(String(64))
@@ -51,6 +55,14 @@ class UnifiedJobAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "background_job_attempt"
     __table_args__ = (
         UniqueConstraint("job_id", "attempt_number", name="uq_background_job_attempt_number"),
+        CheckConstraint(
+            "attempt_number > 0 AND latency_ms >= 0",
+            name="background_job_attempt_values_check",
+        ),
+        CheckConstraint(
+            "status IN ('succeeded', 'retryable_error', 'permanent_error')",
+            name="background_job_attempt_status_check",
+        ),
     )
 
     job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("background_job.id", ondelete="CASCADE"))
@@ -63,7 +75,10 @@ class UnifiedJobAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class DeadLetter(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "dead_letter"
-    __table_args__ = (UniqueConstraint("job_id", name="uq_dead_letter_job"),)
+    __table_args__ = (
+        UniqueConstraint("job_id", name="uq_dead_letter_job"),
+        CheckConstraint("replay_count >= 0", name="dead_letter_replay_count_check"),
+    )
 
     job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("background_job.id", ondelete="CASCADE"))
     reason_code: Mapped[str] = mapped_column(String(64))

@@ -155,3 +155,17 @@ async def test_terminology_rejects_unknown_or_same_language(
             },
         )
     ).status_code == 422
+
+
+async def test_source_url_credentials_are_rejected(client: httpx.AsyncClient) -> None:
+    response = await client.post(
+        "/api/v1/sources",
+        json={
+            "name": "Unsafe feed",
+            "feed_url": "https://user:private-password@example.com/feed.xml",
+            "adapter_type": "rss",
+            "poll_interval_seconds": 300,
+        },
+    )
+    assert response.status_code == 422
+    assert "private-password" not in response.text

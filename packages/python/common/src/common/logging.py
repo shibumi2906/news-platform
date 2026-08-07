@@ -9,6 +9,7 @@ own log files, so no file sink is ever added here.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, Any
@@ -23,6 +24,21 @@ if TYPE_CHECKING:
 
 _correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 _trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
+_SENSITIVE_KEY_PARTS = frozenset(
+    {
+        "authorization",
+        "body",
+        "content",
+        "cookie",
+        "credential",
+        "email",
+        "password",
+        "payload",
+        "raw",
+        "secret",
+        "token",
+    }
+)
 
 
 def get_correlation_id() -> str | None:
@@ -63,10 +79,28 @@ def _json_sink(message: Message) -> None:
     trace_id = _trace_id.get()
     if trace_id is not None:
         payload["trace_id"] = trace_id
-    payload.update(record["extra"])
+    payload.update(_redact(record["extra"]))
     if record["exception"] is not None:
-        payload["exception"] = str(record["exception"])
+        exception_type = record["exception"].type
+        payload["exception"] = {
+            "type": exception_type.__name__ if exception_type is not None else "Exception"
+        }
     sys.stdout.write(json.dumps(payload, default=str) + "\n")
+
+
+def _redact(value: Any, *, key: str | None = None) -> Any:
+    if key is not None and _is_sensitive_key(key):
+        return "[REDACTED]"
+    if isinstance(value, dict):
+        return {str(item_key): _redact(item, key=str(item_key)) for item_key, item in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_redact(item) for item in value]
+    return value
+
+
+def _is_sensitive_key(key: str) -> bool:
+    parts = {part for part in re.split(r"[^a-z0-9]+", key.lower()) if part}
+    return bool(parts & _SENSITIVE_KEY_PARTS)
 
 
 def configure_logging(log_level: str = "INFO") -> None:

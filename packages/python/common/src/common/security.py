@@ -60,9 +60,11 @@ class PrincipalSigner:
         keys: dict[str, str] = {}
         for item in value.split(","):
             key_id, separator, secret = item.partition(":")
-            if not separator or not key_id or len(secret) < 32:
+            if not separator or not key_id or len(secret) < 32 or key_id in keys:
                 raise ValueError("session signing keys must be kid:secret with 32+ char secrets")
             keys[key_id] = secret
+        if not keys:
+            raise ValueError("at least one session signing key is required")
         return cls(keys, current_key_id=next(iter(keys)))
 
     def issue(
@@ -77,7 +79,7 @@ class PrincipalSigner:
         auth_method: str,
         now: int | None = None,
     ) -> str:
-        issued_at = now or int(time.time())
+        issued_at = now if now is not None else int(time.time())
         payload = {
             "sid": str(session_id),
             "sub": str(user_id),
@@ -102,7 +104,8 @@ class PrincipalSigner:
                 signature, self._sign(encoded, key_id)
             ):
                 return None
-            if int(payload["exp"]) <= (now or int(time.time())):
+            current_time = now if now is not None else int(time.time())
+            if int(payload["exp"]) <= current_time:
                 return None
             return Principal(
                 session_id=uuid.UUID(payload["sid"]),

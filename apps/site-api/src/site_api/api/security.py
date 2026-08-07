@@ -10,7 +10,7 @@ from common.auth import AuthContext, authenticate_admin, require_permission
 from common.logging import get_correlation_id
 from common.security import PrincipalSigner, hash_password, token_hash
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 from site_domain.models import (
     AdminSession,
     AdminUser,
@@ -21,7 +21,8 @@ from site_domain.models import (
     role_permission,
     user_role,
 )
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from site_api.security_service import login
 
@@ -36,6 +37,12 @@ AuditRead = Annotated[AuthContext, Depends(require_permission("audit:read"))]
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=1024)
+
+
+class SessionIntrospectionRequest(BaseModel):
+    session_token: SecretStr
+    csrf_token: SecretStr | None = None
+    unsafe: bool = False
 
 
 class UserRequest(BaseModel):
@@ -68,6 +75,19 @@ async def create_session(payload: LoginRequest, request: Request) -> dict[str, A
     peer = request.client.host if request.client else "unknown"
     limiter_key = token_hash(f"{peer}:{payload.username.lower()}")
     if not request.app.state.login_limiter.allow(limiter_key):
+        async with request.app.state.session_factory() as session:
+            session.add(
+                AuditLog(
+                    actor_label="anonymous",
+                    action="auth.login",
+                    resource_type="session",
+                    outcome="throttled",
+                    correlation_id=get_correlation_id(),
+                    details={"status_code": 429},
+                    created_at=datetime.now(UTC),
+                )
+            )
+            await session.commit()
         raise HTTPException(429, "too many login attempts")
     signer = PrincipalSigner.from_config(settings.admin_session_keys.get_secret_value())
     async with request.app.state.session_factory() as session:
@@ -124,6 +144,26 @@ async def current_session(context: Authenticated) -> dict[str, Any]:
         "auth_method": context.auth_method,
         "mfa_verified": context.mfa_verified,
     }
+
+
+@router.post("/introspect", response_model=dict[str, bool])
+async def introspect_session(
+    payload: SessionIntrospectionRequest,
+    request: Request,
+    context: Authenticated,
+) -> dict[str, bool]:
+    if context.auth_method != "service_token":
+        raise HTTPException(403, "service authentication required")
+    signer = PrincipalSigner.from_config(
+        request.app.state.settings.admin_session_keys.get_secret_value()
+    )
+    token = payload.session_token.get_secret_value()
+    principal = signer.verify(token)
+    validator = getattr(request.app.state, "admin_session_validator", None)
+    if principal is None or validator is None:
+        return {"active": False}
+    csrf_token = payload.csrf_token.get_secret_value() if payload.csrf_token else None
+    return {"active": await validator(principal, token, csrf_token, payload.unsafe)}
 
 
 @router.post("/logout", status_code=204)
@@ -214,7 +254,7 @@ async def user_state(
             raise HTTPException(404, "user not found")
         user.is_active = action == "activate"
         if not user.is_active:
-            await session.execute(delete(AdminSession).where(AdminSession.user_id == user.id))
+            await _revoke_sessions(session, [user.id])
         await session.commit()
         return {"id": str(user.id), "is_active": user.is_active}
 
@@ -282,6 +322,13 @@ async def update_role(
             raise HTTPException(404, "role not found")
         if role.is_system:
             raise HTTPException(409, "built-in roles are immutable")
+        duplicate = (
+            await session.execute(
+                select(Role.id).where(Role.name == payload.name, Role.id != role.id)
+            )
+        ).scalar_one_or_none()
+        if duplicate is not None:
+            raise HTTPException(409, "role already exists")
         permissions = list(
             (
                 await session.execute(
@@ -293,11 +340,19 @@ async def update_role(
             raise HTTPException(422, "one or more permissions do not exist")
         role.name = payload.name
         role.description = payload.description
+        affected_user_ids = list(
+            (
+                await session.execute(
+                    select(user_role.c.user_id).where(user_role.c.role_id == role.id)
+                )
+            ).scalars()
+        )
         await session.execute(delete(role_permission).where(role_permission.c.role_id == role.id))
         await session.execute(
             insert(role_permission),
             [{"role_id": role.id, "permission_id": item.id} for item in permissions],
         )
+        await _revoke_sessions(session, affected_user_ids)
         await session.commit()
         return {"id": str(role.id), "name": role.name}
 
@@ -323,7 +378,7 @@ async def assign_user_roles(
             insert(user_role),
             [{"user_id": user.id, "role_id": role.id} for role in roles],
         )
-        await session.execute(delete(AdminSession).where(AdminSession.user_id == user.id))
+        await _revoke_sessions(session, [user.id])
         await session.commit()
         return {"id": str(user.id), "roles": sorted(role.name for role in roles)}
 
@@ -340,6 +395,7 @@ async def list_audit(request: Request, _: AuditRead) -> list[dict[str, Any]]:
                 "actor": row.actor_label,
                 "action": row.action,
                 "resource_type": row.resource_type,
+                "resource_id": row.resource_id,
                 "outcome": row.outcome,
                 "correlation_id": row.correlation_id,
                 "details": row.details,
@@ -375,6 +431,16 @@ async def rotate_secret_metadata(
     _: UsersWrite,
 ) -> dict[str, Any]:
     async with request.app.state.session_factory() as session:
+        duplicate = (
+            await session.execute(
+                select(SecretRevision.id).where(
+                    SecretRevision.name == payload.name,
+                    SecretRevision.version == payload.version,
+                )
+            )
+        ).scalar_one_or_none()
+        if duplicate is not None:
+            raise HTTPException(409, "secret revision already exists")
         previous = list(
             (
                 await session.execute(
@@ -397,3 +463,13 @@ async def rotate_secret_metadata(
         session.add(current)
         await session.commit()
         return {"id": str(current.id), "status": current.status}
+
+
+async def _revoke_sessions(session: AsyncSession, user_ids: list[uuid.UUID]) -> None:
+    if not user_ids:
+        return
+    await session.execute(
+        update(AdminSession)
+        .where(AdminSession.user_id.in_(user_ids), AdminSession.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )

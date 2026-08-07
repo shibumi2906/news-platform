@@ -13,9 +13,14 @@ Unsafe session-authenticated requests require the opaque HttpOnly session plus a
 double-submit CSRF token. Trusted hosts, explicit origins, strict cookies,
 sliding idle expiry and login throttling are enforced. Service tokens accept a
 comma-separated overlap window for machine-to-machine rotation and must never be
-made available to the public web container. OIDC and MFA are extension protocols;
-local passwords are the implemented identity provider in this release. Enabling
+made available to the public web container. The Integrator API validates every
+signed administrator session and unsafe-request CSRF token against the Site-owned
+session store through a fail-closed internal introspection call, so logout,
+deactivation and RBAC changes take effect immediately. OIDC and MFA are extension
+protocols; local passwords are the implemented identity provider in this release. Enabling
 `mfa_required` blocks local login until an MFA verifier/enrollment flow is wired.
+Bootstrap credentials are an install-time pair only: remove both variables after
+the first administrator has been created; subsequent starts do not require them.
 
 The audit API is read-only and PostgreSQL rejects updates or deletes through an
 append-only trigger. Logs contain identifiers and bounded diagnostics, not
@@ -43,13 +48,15 @@ Validate secrets without printing them, then use the production overlay:
 ./scripts/validate-production-env.ps1
 ./scripts/deploy.ps1 -Action install
 ./scripts/deploy.ps1 -Action update
-./scripts/deploy.ps1 -Action rollback
+./scripts/deploy.ps1 -Action rollback -RollbackCompose D:\releases\previous-images.yml
 ```
 
 The overlay requires explicit PostgreSQL, Redis, MinIO, session, service-token,
-bootstrap-admin, allowed-host and web-origin values. Store these in the platform's
-secret manager; do not commit `.env` files. Application rollback reuses the
-previous immutable image. Database downgrade is deliberately opt-in with
+allowed-host and web-origin values; bootstrap-admin values are a complete optional
+pair after initial installation. Store secrets in the platform's secret manager;
+do not commit `.env` files. Application rollback fails closed
+unless `-RollbackCompose` names an operator-controlled override containing the
+previous immutable image references. Database downgrade is deliberately opt-in with
 `-RollbackDatabase` and should only follow a tested backup and migration-specific
 compatibility review.
 

@@ -589,6 +589,7 @@ source = { editable = "apps/integrator-api" }
 dependencies = [
     { name = "common" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "integrator-domain" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -597,6 +598,7 @@ dependencies = [
 requires-dist = [
     { name = "common", editable = "packages/python/common" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "integrator-domain", editable = "packages/python/integrator-domain" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]

@@ -26,7 +26,6 @@ from common.observability import (
 )
 from common.rate_limit import SlidingWindowLimiter
 from fastapi import FastAPI, Request, Response
-from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
@@ -41,6 +40,7 @@ from site_api.api.media import router as media_router
 from site_api.api.read_models import admin_router, public_router
 from site_api.api.security import admin_router as security_admin_router
 from site_api.api.security import router as security_router
+from site_api.api.system import build_job_metrics_collector
 from site_api.api.system import router as system_router
 from site_api.config import Settings
 from site_api.media_generation import FakeImageProvider, MediaGateway
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
         app.state.settings = settings
         app.state.db_engine = create_engine(settings.database_url)
         app.state.session_factory = create_session_factory(app.state.db_engine)
+        app.state.metrics_collector = build_job_metrics_collector(app.state.session_factory)
         app.state.object_storage = S3ObjectStorage(
             endpoint_url=settings.s3_endpoint_url,
             access_key=settings.s3_access_key.get_secret_value(),
@@ -72,13 +73,24 @@ def create_app() -> FastAPI:
         app.state.admin_session_validator = build_session_validator(
             app.state.session_factory, idle_seconds=settings.admin_session_idle_seconds
         )
-        if settings.admin_bootstrap_username and settings.admin_bootstrap_password:
+        try:
             async with app.state.session_factory() as session:
                 await ensure_security_seed(
                     session,
                     username=settings.admin_bootstrap_username,
-                    password=settings.admin_bootstrap_password.get_secret_value(),
+                    password=(
+                        settings.admin_bootstrap_password.get_secret_value()
+                        if settings.admin_bootstrap_password
+                        else None
+                    ),
                 )
+        except Exception as exc:
+            # A configured first-run bootstrap must fail closed. On subsequent
+            # starts, a transient database outage must not take liveness down;
+            # readiness remains unavailable until the database recovers.
+            if settings.admin_bootstrap_username is not None:
+                raise
+            logger.warning("security_seed_deferred", error_type=type(exc).__name__)
         logger.info(
             "startup",
             instance_id=settings.instance_id,
@@ -127,13 +139,26 @@ def create_app() -> FastAPI:
             context = getattr(request.state, "auth_context", None)
             if context is not None and request.method not in {"GET", "HEAD", "OPTIONS"}:
                 try:
+                    path_segments = [item for item in request.url.path.split("/") if item]
+                    resource_type = (
+                        path_segments[3]
+                        if path_segments[:3] == ["api", "v1", "admin"]
+                        and len(path_segments) > 3
+                        else path_segments[-1]
+                        if path_segments
+                        else "api"
+                    )
+                    resource_ids = [
+                        str(value)
+                        for key, value in request.path_params.items()
+                        if key == "id" or key.endswith("_id")
+                    ]
                     await write_audit(
                         request.app.state.session_factory,
                         context=context,
                         action=f"{request.method} {request.url.path}",
-                        resource_type=request.url.path.split("/")[3]
-                        if len(request.url.path.split("/")) > 3
-                        else "api",
+                        resource_type=resource_type,
+                        resource_id=",".join(resource_ids) if resource_ids else None,
                         outcome="success" if response.status_code < 400 else "rejected",
                         status_code=response.status_code,
                     )
@@ -178,7 +203,16 @@ def create_app() -> FastAPI:
             error=ErrorDetail(
                 code="validation_error",
                 message="request validation failed",
-                details={"errors": jsonable_encoder(exc.errors())},
+                details={
+                    "errors": [
+                        {
+                            "loc": list(error["loc"]),
+                            "msg": error["msg"],
+                            "type": error["type"],
+                        }
+                        for error in exc.errors()
+                    ]
+                },
                 correlation_id=get_correlation_id(),
             )
         )

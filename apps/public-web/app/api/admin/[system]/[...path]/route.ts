@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { backendUrl } from "@/lib/api";
 import { CSRF_COOKIE, SESSION_COOKIE, siteApiUrl } from "@/lib/session";
-import { isSameOrigin } from "@/lib/same-origin";
+import { isSafeBackendPath, isSameOrigin } from "@/lib/same-origin";
 
 type Context = { params: Promise<{ system: string; path: string[] }> };
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -26,7 +26,7 @@ async function proxy(request: Request, context: Context): Promise<Response> {
   }
   const { system, path } = await context.params;
   if (system !== "site" && system !== "integrator") return Response.json({ error: "unknown backend" }, { status: 404 });
-  if (path.some((segment) => !/^[A-Za-z0-9._~-]+$/.test(segment))) return Response.json({ error: "invalid backend path" }, { status: 400 });
+  if (!isSafeBackendPath(path)) return Response.json({ error: "invalid backend path" }, { status: 400 });
   const sourceUrl = new URL(request.url);
   const target = `${backendUrl(system)}/${path.join("/")}${sourceUrl.search}`;
   const headers = new Headers({ "X-Admin-Session": session });

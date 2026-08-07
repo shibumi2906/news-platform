@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import UUID
 
+import httpx
 from common.db import create_engine, create_session_factory
 from common.logging import (
     bind_correlation_id,
@@ -32,6 +33,7 @@ from integrator_api.api.health import router as health_router
 from integrator_api.api.operations import router as operations_router
 from integrator_api.api.sources import router as sources_router
 from integrator_api.config import Settings
+from integrator_api.security import build_remote_session_validator
 
 logger = get_logger(__name__)
 
@@ -45,6 +47,19 @@ def create_app() -> FastAPI:
         app.state.settings = settings
         app.state.db_engine = create_engine(settings.database_url)
         app.state.session_factory = create_session_factory(app.state.db_engine)
+        app.state.site_auth_client = httpx.AsyncClient(
+            base_url=settings.site_api_url.rstrip("/"),
+            timeout=settings.admin_introspection_timeout_seconds,
+            trust_env=False,
+        )
+        service_token = (
+            settings.admin_api_token.get_secret_value().split(",", maxsplit=1)[0].strip()
+            if settings.admin_api_token is not None
+            else ""
+        )
+        app.state.admin_session_validator = build_remote_session_validator(
+            app.state.site_auth_client, service_token=service_token
+        )
         logger.info(
             "startup",
             instance_id=settings.instance_id,
@@ -52,6 +67,7 @@ def create_app() -> FastAPI:
             app_version=settings.app_version,
         )
         yield
+        await app.state.site_auth_client.aclose()
         await app.state.db_engine.dispose()
 
     app = FastAPI(title="Integrator API", version=settings.app_version, lifespan=lifespan)

@@ -43,6 +43,10 @@ class DistributionJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "'failed', 'dlq', 'cancelled')",
             name="distribution_job_status_check",
         ),
+        CheckConstraint(
+            "attempt_count >= 0 AND max_attempts > 0 AND attempt_count <= max_attempts",
+            name="distribution_job_attempt_budget_check",
+        ),
     )
 
     channel_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("distribution_channel.id"))
@@ -79,6 +83,10 @@ class DistributionAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         CheckConstraint(
             "status IN ('succeeded', 'retryable_error', 'permanent_error')",
             name="distribution_attempt_status_check",
+        ),
+        CheckConstraint(
+            "attempt_number > 0 AND latency_ms >= 0",
+            name="distribution_attempt_values_check",
         ),
     )
 

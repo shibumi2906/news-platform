@@ -9,6 +9,7 @@ class Settings(BaseAppSettings):
     this application only ever runs as part of a site installation."""
 
     instance_type: InstanceType = InstanceType.SITE
+    admin_auth_enabled: bool = Field(default=True, alias="ADMIN_AUTH_ENABLED")
 
     #: docs/14 §2: requests with a timestamp outside this window are rejected
     #: as a replay, regardless of signature validity.
@@ -36,10 +37,14 @@ class Settings(BaseAppSettings):
             raise ValueError("production object-storage credentials are unsafe")
         if not self.admin_api_token or len(self.admin_api_token.get_secret_value()) < 32:
             raise ValueError("production ADMIN_API_TOKEN must contain at least 32 characters")
-        if (
-            not self.admin_bootstrap_password
-            or len(self.admin_bootstrap_password.get_secret_value()) < 12
-        ):
+        bootstrap_password = (
+            self.admin_bootstrap_password.get_secret_value()
+            if self.admin_bootstrap_password
+            else ""
+        )
+        if bool(self.admin_bootstrap_username) != bool(bootstrap_password):
+            raise ValueError("production bootstrap username and password must be set together")
+        if bootstrap_password and len(bootstrap_password) < 12:
             raise ValueError("production bootstrap password must contain at least 12 characters")
         return self
 

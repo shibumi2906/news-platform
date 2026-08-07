@@ -6,6 +6,7 @@ param(
   [switch]$ConfirmRestore
 )
 $ErrorActionPreference = "Stop"
+if ($Stamp -notmatch "^\d{8}T\d{6}Z$") { throw "Stamp must use the backup timestamp format yyyyMMddTHHmmssZ" }
 $compose = @("compose")
 foreach ($file in $ComposeFiles) { $compose += @("-f", $file) }
 if ($ProjectName) { $compose += @("-p", $ProjectName) }
@@ -13,6 +14,14 @@ if (-not $ConfirmRestore) { throw "Restore is destructive; pass -ConfirmRestore 
 $target = [IO.Path]::GetFullPath($BackupDirectory)
 $manifestPath = Join-Path $target "manifest-$Stamp.json"
 $manifest = Get-Content $manifestPath | ConvertFrom-Json
+$expectedFiles = @("site-$Stamp.dump", "integrator-$Stamp.dump", "minio-$Stamp.tar.gz")
+$manifestNames = @($manifest.files | ForEach-Object { [string]$_.name })
+if ($manifestNames.Count -ne $expectedFiles.Count -or @($manifestNames | Sort-Object -Unique).Count -ne $expectedFiles.Count) {
+  throw "Backup manifest must contain exactly the Site, Integrator, and MinIO artifacts"
+}
+foreach ($expected in $expectedFiles) {
+  if ($manifestNames -notcontains $expected) { throw "Backup manifest is missing $expected" }
+}
 foreach ($entry in $manifest.files) {
   $file = Join-Path $target $entry.name
   if ((Get-FileHash $file -Algorithm SHA256).Hash.ToLower() -ne $entry.sha256) { throw "Backup checksum failed: $($entry.name)" }

@@ -9,7 +9,12 @@ class Settings(BaseAppSettings):
     this application only ever runs as part of an integrator installation."""
 
     instance_type: InstanceType = InstanceType.INTEGRATOR
+    admin_auth_enabled: bool = Field(default=True, alias="ADMIN_AUTH_ENABLED")
     admin_api_token: SecretStr | None = Field(default=None, alias="ADMIN_API_TOKEN")
+    site_api_url: str = Field(default="http://site-api:8000", alias="SITE_API_URL")
+    admin_introspection_timeout_seconds: float = Field(
+        default=5.0, ge=0.1, le=30.0, alias="ADMIN_INTROSPECTION_TIMEOUT_SECONDS"
+    )
 
     @model_validator(mode="after")
     def validate_integrator_production_secrets(self) -> Settings:

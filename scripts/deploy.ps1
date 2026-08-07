@@ -4,9 +4,18 @@ param(
   [string]$ProductionCompose = "deploy/compose/docker-compose.prod.yml",
   [string[]]$AdditionalCompose = @(),
   [string]$ProjectName = "",
+  [string]$RollbackCompose = "",
   [switch]$RollbackDatabase
 )
 $ErrorActionPreference = "Stop"
+if ($Action -eq "rollback") {
+  if ([string]::IsNullOrWhiteSpace($RollbackCompose)) {
+    throw "Rollback requires -RollbackCompose pointing to a versioned immutable-image override"
+  }
+  if (-not (Test-Path -LiteralPath $RollbackCompose -PathType Leaf)) {
+    throw "Rollback Compose override does not exist: $RollbackCompose"
+  }
+}
 & "$PSScriptRoot/validate-production-env.ps1" -Quiet
 $compose = @("compose", "-f", $BaseCompose, "-f", $ProductionCompose)
 foreach ($file in $AdditionalCompose) { $compose += @("-f", $file) }
@@ -30,6 +39,7 @@ if ($Action -eq "install") {
     docker @compose run --rm migrate-site alembic -c migrations/site/alembic.ini downgrade -1
     if ($LASTEXITCODE -ne 0) { throw "site rollback failed" }
   }
-  docker @compose up --detach --wait --no-build
+  $rollback = $compose + @("-f", $RollbackCompose)
+  docker @rollback up --detach --wait --no-build
   if ($LASTEXITCODE -ne 0) { throw "application rollback startup failed" }
 }

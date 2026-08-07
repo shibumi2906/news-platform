@@ -6,7 +6,7 @@ groups:
         for: 10m
         labels: {severity: page}
       - alert: ApiLatencyHigh
-        expr: rate(http_request_duration_seconds_sum[5m]) / rate(http_requests_total[5m]) > 1
+        expr: sum(rate(http_request_duration_seconds_sum[5m])) / sum(rate(http_requests_total[5m])) > 1
         for: 10m
         labels: {severity: warning}
       - alert: DeadLetterQueueNonEmpty

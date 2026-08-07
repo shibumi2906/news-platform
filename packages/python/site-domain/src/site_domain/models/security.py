@@ -7,7 +7,16 @@ from datetime import datetime
 from typing import Any
 
 from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Table, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    String,
+    Table,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 user_role = Table(
@@ -26,6 +35,10 @@ role_permission = Table(
 
 class AdminUser(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "admin_user"
+    __table_args__ = (
+        UniqueConstraint("email", name="uq_admin_user_email"),
+        UniqueConstraint("oidc_issuer", "oidc_subject", name="uq_admin_user_oidc_identity"),
+    )
 
     username: Mapped[str] = mapped_column(String(128), unique=True)
     password_hash: Mapped[str | None] = mapped_column(String(512), default=None)
@@ -56,6 +69,11 @@ class Permission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class AdminSession(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "admin_session"
+    __table_args__ = (
+        CheckConstraint(
+            "idle_expires_at <= expires_at", name="admin_session_idle_before_expiry_check"
+        ),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("admin_user.id", ondelete="CASCADE"))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
@@ -84,7 +102,13 @@ class AuditLog(Base, UUIDPrimaryKeyMixin):
 
 class SecretRevision(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "secret_revision"
-    __table_args__ = (UniqueConstraint("name", "version", name="uq_secret_revision"),)
+    __table_args__ = (
+        UniqueConstraint("name", "version", name="uq_secret_revision"),
+        CheckConstraint(
+            "status IN ('active', 'overlap', 'retired')",
+            name="secret_revision_status_check",
+        ),
+    )
 
     name: Mapped[str] = mapped_column(String(128))
     version: Mapped[str] = mapped_column(String(64))

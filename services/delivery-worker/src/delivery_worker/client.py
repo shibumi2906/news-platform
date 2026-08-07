@@ -13,6 +13,7 @@ from uuid import UUID
 
 import httpx
 from common.ids import new_uuid_str
+from common.logging import get_correlation_id
 from common.signing import (
     CONNECTION_ID_HEADER,
     IDEMPOTENCY_KEY_HEADER,
@@ -68,6 +69,9 @@ async def send_package(
         NONCE_HEADER: nonce,
         IDEMPOTENCY_KEY_HEADER: idempotency_key,
     }
+    correlation_id = get_correlation_id()
+    if correlation_id is not None:
+        headers["X-Request-Id"] = correlation_id
 
     last_error: str | None = None
     for attempt in range(1, max_attempts + 1):
@@ -76,7 +80,7 @@ async def send_package(
                 url, content=body, headers=headers, timeout=timeout_seconds
             )
         except httpx.HTTPError as exc:
-            last_error = str(exc)
+            last_error = f"transport_{type(exc).__name__.lower()}"
             if attempt < max_attempts:
                 await asyncio.sleep(_DEFAULT_RETRY_AFTER_SECONDS)
                 continue

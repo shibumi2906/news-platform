@@ -49,7 +49,7 @@ async def fetch_feed(
         try:
             response = await client.get(url, headers=headers, timeout=timeout_seconds)
         except httpx.HTTPError as exc:
-            last_error = str(exc)
+            last_error = f"transport_{type(exc).__name__.lower()}"
             if attempt < max_attempts:
                 await asyncio.sleep(_DEFAULT_RETRY_AFTER_SECONDS)
                 continue

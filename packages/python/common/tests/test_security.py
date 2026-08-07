@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from common.security import PrincipalSigner, hash_password, verify_password
 
 
@@ -30,3 +31,9 @@ def test_principal_signing_rotation_and_tamper_detection() -> None:
     assert principal is not None and principal.permissions == frozenset({"users:read"})
     assert signer.verify(token + "tampered", now=101) is None
     assert signer.verify(token, now=161) is None
+
+
+@pytest.mark.parametrize("value", ["", f"v1:{'a' * 32},v1:{'b' * 32}", "missing-secret"])
+def test_principal_signing_rejects_ambiguous_or_invalid_keyrings(value: str) -> None:
+    with pytest.raises(ValueError):
+        PrincipalSigner.from_config(value)

@@ -73,8 +73,10 @@ class TelegramAdapter:
                 json={"chat_id": chat_id, "text": text, "disable_web_page_preview": False},
                 headers={"X-Idempotency-Key": idempotency_key},
             )
-        except httpx.TimeoutException as exc:
-            raise DistributionError("telegram_timeout", retryable=True) from exc
+        except httpx.TimeoutException:
+            raise DistributionError("telegram_timeout", retryable=True) from None
+        except httpx.RequestError:
+            raise DistributionError("telegram_transport_error", retryable=True) from None
         if response.status_code == 429 or response.status_code >= 500:
             raise DistributionError("telegram_temporarily_unavailable", retryable=True)
         if response.status_code >= 400:

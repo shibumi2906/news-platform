@@ -12,7 +12,12 @@ from pydantic import BaseModel, Field
 from site_domain.models import DistributionAttempt, DistributionChannel, DistributionJob
 from sqlalchemy import select
 
-from site_api.distribution import create_channel, schedule_distribution, validate_channel_config
+from site_api.distribution import (
+    SUPPORTED_CHANNELS,
+    create_channel,
+    schedule_distribution,
+    validate_channel_config,
+)
 
 router = APIRouter(
     prefix="/api/v1/admin/distribution",
@@ -88,6 +93,8 @@ async def update_channel(
         item = await session.get(DistributionChannel, channel_id)
         if item is None:
             raise HTTPException(404, "distribution channel not found")
+        if payload.kind not in SUPPORTED_CHANNELS:
+            raise HTTPException(422, "unsupported distribution channel kind")
         if payload.kind == "telegram" and not isinstance(payload.config.get("chat_id"), str):
             raise HTTPException(422, "telegram channel requires config.chat_id")
         try:

@@ -6,7 +6,7 @@ import type {
   PublicLanguage,
 } from "@/lib/types";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE } from "@/lib/session";
+import { requireSession, SESSION_COOKIE } from "@/lib/session";
 
 const siteUrl = process.env.SITE_API_URL ?? "http://localhost:8002";
 const integratorUrl = process.env.INTEGRATOR_API_URL ?? "http://localhost:8001";
@@ -19,6 +19,7 @@ async function requestJson<T>(
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
   if (options.admin) {
+    await requireSession();
     const token = (await cookies()).get(SESSION_COOKIE)?.value;
     if (!token) throw new Error("Admin session is required for admin API calls");
     headers.set("X-Admin-Session", token);

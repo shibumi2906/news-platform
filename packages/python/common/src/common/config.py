@@ -38,6 +38,7 @@ class BaseAppSettings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     database_url: str = Field(alias="DATABASE_URL")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    admin_auth_enabled: bool = Field(default=False, alias="ADMIN_AUTH_ENABLED")
     admin_session_keys: SecretStr = Field(
         default=SecretStr("dev-v1:change-me-session-signing-key-32-characters"),
         alias="ADMIN_SESSION_KEYS",
@@ -61,13 +62,21 @@ class BaseAppSettings(BaseSettings):
         unsafe = ("change-me", "localhost")
         if any(marker in self.database_url for marker in unsafe):
             raise ValueError("production DATABASE_URL contains an unsafe placeholder")
-        session_keys = self.admin_session_keys.get_secret_value()
-        if "change-me" in session_keys:
-            raise ValueError("production ADMIN_SESSION_KEYS must be rotated")
-        for item in session_keys.split(","):
-            kid, separator, secret = item.partition(":")
-            if not separator or not kid or len(secret) < 32:
-                raise ValueError("production ADMIN_SESSION_KEYS contains an invalid key")
+        if self.admin_auth_enabled:
+            session_keys = self.admin_session_keys.get_secret_value()
+            if "change-me" in session_keys:
+                raise ValueError("production ADMIN_SESSION_KEYS must be rotated")
+            seen_key_ids: set[str] = set()
+            for item in session_keys.split(","):
+                kid, separator, secret = item.partition(":")
+                if (
+                    not separator
+                    or not kid
+                    or len(secret) < 32
+                    or kid in seen_key_ids
+                ):
+                    raise ValueError("production ADMIN_SESSION_KEYS contains an invalid key")
+                seen_key_ids.add(kid)
         hosts = [item.strip() for item in self.allowed_hosts.split(",") if item.strip()]
         if not hosts or "*" in hosts:
             raise ValueError("production ALLOWED_HOSTS must be explicit")

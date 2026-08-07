@@ -91,3 +91,21 @@ async def test_fetch_feed_returns_error_on_permanent_4xx_without_retry() -> None
     assert result.status == "error"
     assert result.error == "http_404"
     assert attempts["count"] == 1
+
+
+async def test_fetch_feed_redacts_transport_exception_details() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("private-source-credential", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    result = await fetch_feed(
+        client,
+        "https://user:private-source-credential@example.com/feed.xml",
+        user_agent="test-agent",
+        timeout_seconds=5.0,
+        max_attempts=1,
+    )
+    await client.aclose()
+
+    assert result.error == "transport_connecterror"
+    assert "private-source-credential" not in result.error

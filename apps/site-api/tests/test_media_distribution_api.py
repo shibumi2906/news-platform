@@ -130,3 +130,24 @@ async def test_media_and_distribution_negative_validation(client: httpx.AsyncCli
     )
     assert leaked_secret.status_code == 422
     assert "must-not-be-stored" not in leaked_secret.text
+    valid = await client.post(
+        "/api/v1/admin/distribution/channels",
+        headers=headers,
+        json={
+            "name": "Safe",
+            "kind": "telegram",
+            "account_key": "safe",
+            "config": {"chat_id": "1"},
+        },
+    )
+    unsupported_update = await client.put(
+        f"/api/v1/admin/distribution/channels/{valid.json()['id']}",
+        headers=headers,
+        json={
+            "name": "Unsafe kind",
+            "kind": "arbitrary-provider",
+            "account_key": "safe",
+            "config": {},
+        },
+    )
+    assert unsupported_update.status_code == 422

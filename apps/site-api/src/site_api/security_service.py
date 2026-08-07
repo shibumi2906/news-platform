@@ -26,10 +26,13 @@ from site_domain.models import (
     role_permission,
     user_role,
 )
-from sqlalchemy import insert, select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 logger = get_logger(__name__)
+_DUMMY_PASSWORD_HASH = hash_password(
+    "timing-equalization-only", salt=b"\x00" * 16
+)
 
 PERMISSIONS: dict[str, str] = {
     "users:read": "View users and roles",
@@ -64,6 +67,8 @@ async def ensure_security_seed(
             item = Permission(code=code, description=description)
             session.add(item)
             await session.flush()
+        elif item.description != description:
+            item.description = description
         permissions[code] = item
     roles: dict[str, Role] = {}
     for name, codes in ROLE_PERMISSIONS.items():
@@ -72,10 +77,44 @@ async def ensure_security_seed(
             role = Role(name=name, description=f"Built-in {name.lower()} role", is_system=True)
             session.add(role)
             await session.flush()
+            current_codes: set[str] = set()
+        else:
+            current_codes = set(
+                (
+                    await session.execute(
+                        select(Permission.code)
+                        .join(
+                            role_permission,
+                            role_permission.c.permission_id == Permission.id,
+                        )
+                        .where(role_permission.c.role_id == role.id)
+                    )
+                ).scalars()
+            )
+        if current_codes != codes:
+            affected_user_ids = list(
+                (
+                    await session.execute(
+                        select(user_role.c.user_id).where(user_role.c.role_id == role.id)
+                    )
+                ).scalars()
+            )
+            await session.execute(
+                delete(role_permission).where(role_permission.c.role_id == role.id)
+            )
             await session.execute(
                 insert(role_permission),
                 [{"role_id": role.id, "permission_id": permissions[code].id} for code in codes],
             )
+            if affected_user_ids:
+                await session.execute(
+                    update(AdminSession)
+                    .where(
+                        AdminSession.user_id.in_(affected_user_ids),
+                        AdminSession.revoked_at.is_(None),
+                    )
+                    .values(revoked_at=datetime.now(UTC))
+                )
         roles[name] = role
     if username and password:
         user = (
@@ -111,11 +150,13 @@ async def login(
     user = (
         await session.execute(select(AdminUser).where(AdminUser.username == username))
     ).scalar_one_or_none()
+    candidate_hash = user.password_hash if user and user.password_hash else _DUMMY_PASSWORD_HASH
+    password_valid = verify_password(password, candidate_hash)
     if (
         user is None
         or not user.is_active
         or user.password_hash is None
-        or not verify_password(password, user.password_hash)
+        or not password_valid
     ):
         raise PermissionError("invalid credentials")
     if user.mfa_required:
@@ -199,6 +240,7 @@ async def write_audit(
     context: AuthContext,
     action: str,
     resource_type: str,
+    resource_id: str | None,
     outcome: str,
     status_code: int,
 ) -> None:
@@ -209,6 +251,7 @@ async def write_audit(
                 actor_label=context.actor,
                 action=action,
                 resource_type=resource_type,
+                resource_id=resource_id,
                 outcome=outcome,
                 correlation_id=get_correlation_id(),
                 details={"status_code": status_code, "auth_method": context.auth_method},

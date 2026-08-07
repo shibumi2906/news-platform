@@ -13,8 +13,8 @@ from pathlib import Path
 import asyncpg
 import pytest
 from common.db import create_engine, create_session_factory
-from site_domain.models import AuditLog, UnifiedJob
-from sqlalchemy import update
+from site_domain.models import AdminUser, AuditLog, UnifiedJob
+from sqlalchemy import delete, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 pytestmark = pytest.mark.skipif(
@@ -60,10 +60,16 @@ async def _run() -> None:
             )
             session.add(audit)
             await session.commit()
+            audit_id = audit.id
             with pytest.raises(DBAPIError):
                 await session.execute(
-                    update(AuditLog).where(AuditLog.id == audit.id).values(outcome="changed")
+                    update(AuditLog).where(AuditLog.id == audit_id).values(outcome="changed")
                 )
+                await session.commit()
+            await session.rollback()
+        async with factory() as session:
+            with pytest.raises(DBAPIError):
+                await session.execute(delete(AuditLog).where(AuditLog.id == audit_id))
                 await session.commit()
             await session.rollback()
         async with factory() as session:
@@ -86,6 +92,41 @@ async def _run() -> None:
                         payload={},
                         scheduled_at=now,
                         next_attempt_at=now,
+                    ),
+                ]
+            )
+            with pytest.raises(IntegrityError):
+                await session.commit()
+            await session.rollback()
+        async with factory() as session:
+            session.add(
+                UnifiedJob(
+                    queue="test",
+                    kind="invalid-budget",
+                    idempotency_key="invalid-budget",
+                    status="scheduled",
+                    payload={},
+                    scheduled_at=now,
+                    next_attempt_at=now,
+                    attempt_count=2,
+                    max_attempts=1,
+                )
+            )
+            with pytest.raises(IntegrityError):
+                await session.commit()
+            await session.rollback()
+        async with factory() as session:
+            session.add_all(
+                [
+                    AdminUser(
+                        username="first-user",
+                        display_name="First user",
+                        email="same@example.test",
+                    ),
+                    AdminUser(
+                        username="second-user",
+                        display_name="Second user",
+                        email="same@example.test",
                     ),
                 ]
             )

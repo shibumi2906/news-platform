@@ -26,10 +26,17 @@ jobs:
         run: uv run ruff check .
 
       - name: Mypy
-        run: uv run mypy packages/python/common apps/integrator-api apps/site-api migrations/integrator/env.py migrations/site/env.py
+        run: uv run mypy .
 
       - name: Pytest
         run: uv run pytest -q
+
+      - name: Security and negative tests
+        run: >-
+          uv run pytest -q
+          packages/python/common/tests/test_security.py
+          packages/python/common/tests/test_logging.py
+          apps/site-api/tests/test_admin_security.py
 
       - uses: actions/setup-node@v4
         with:
@@ -65,6 +72,8 @@ jobs:
           MINIO_TEST_SECRET_KEY: change-me
           REDIS_TEST_URL: redis://localhost:6379/0
         run: |
+          docker compose -f deploy/compose/docker-compose.dev.yml run --rm migrate-integrator alembic -c migrations/integrator/alembic.ini check
+          docker compose -f deploy/compose/docker-compose.dev.yml run --rm migrate-site alembic -c migrations/site/alembic.ini check
           uv run pytest tests/integration -q
           curl --fail http://localhost:8001/health/ready
           curl --fail http://localhost:8002/health/ready

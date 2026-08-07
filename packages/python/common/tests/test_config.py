@@ -40,3 +40,22 @@ def test_production_settings_fail_closed_and_accept_explicit_secure_values(
     monkeypatch.setenv("ALLOWED_ORIGINS", "http://news.example")
     with pytest.raises(ValueError, match="HTTPS"):
         BaseAppSettings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_production_session_keys_are_required_only_for_admin_api_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("INSTANCE_ID", "11111111-1111-1111-1111-111111111111")
+    monkeypatch.setenv("INSTANCE_TYPE", "integrator")
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@db.internal:5432/site")
+    monkeypatch.setenv("REDIS_URL", "redis://:strong-password@redis.internal:6379/0")
+    monkeypatch.setenv("ALLOWED_HOSTS", "worker.internal")
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://news.example")
+    worker = BaseAppSettings(_env_file=None)  # type: ignore[call-arg]
+    assert not worker.admin_auth_enabled
+
+    monkeypatch.setenv("ADMIN_AUTH_ENABLED", "true")
+    monkeypatch.setenv("ADMIN_SESSION_KEYS", f"v1:{'a' * 32},v1:{'b' * 32}")
+    with pytest.raises(ValueError, match="ADMIN_SESSION_KEYS"):
+        BaseAppSettings(_env_file=None)  # type: ignore[call-arg]

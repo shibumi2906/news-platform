@@ -235,13 +235,24 @@ async def _record_failure(
             )
         )
         if outcome == "dlq":
-            session.add(
-                DeadLetter(
-                    job_id=unified.id,
-                    reason_code=code,
-                    diagnostics="Exhausted retry policy; payload intentionally omitted.",
+            dead_letter = (
+                await session.execute(select(DeadLetter).where(DeadLetter.job_id == unified.id))
+            ).scalar_one_or_none()
+            if dead_letter is None:
+                session.add(
+                    DeadLetter(
+                        job_id=unified.id,
+                        reason_code=code,
+                        diagnostics="Exhausted retry policy; payload intentionally omitted.",
+                    )
                 )
-            )
+            else:
+                dead_letter.reason_code = code
+                dead_letter.diagnostics = (
+                    "Exhausted retry policy; payload intentionally omitted."
+                )
+                dead_letter.resolved_at = None
+                dead_letter.replayed_at = None
     await session.commit()
     logger.warning(
         "distribution_attempt_failed", job_id=str(job.id), error_code=code, outcome=outcome

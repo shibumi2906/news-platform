@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 import httpx
+from common.logging import bind_correlation_id, reset_correlation_id
 from common.signing import CONNECTION_ID_HEADER, IDEMPOTENCY_KEY_HEADER, SIGNATURE_HEADER, verify
 from delivery_worker.client import send_package
 
@@ -16,15 +17,20 @@ async def test_send_package_signs_request_and_returns_delivered_on_200() -> None
         return httpx.Response(202)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    result = await send_package(
-        client,
-        connection_id=connection_id,
-        delivery_url="https://site.example.com",
-        hmac_secret="s3cret",
-        idempotency_key="pkg-1:1",
-        body=b'{"package_id": "pkg-1"}',
-        timeout_seconds=5.0,
-    )
+    correlation_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    context_token = bind_correlation_id(correlation_id)
+    try:
+        result = await send_package(
+            client,
+            connection_id=connection_id,
+            delivery_url="https://site.example.com",
+            hmac_secret="s3cret",
+            idempotency_key="pkg-1:1",
+            body=b'{"package_id": "pkg-1"}',
+            timeout_seconds=5.0,
+        )
+    finally:
+        reset_correlation_id(context_token)
     await client.aclose()
 
     assert result.status == "delivered"
@@ -34,6 +40,7 @@ async def test_send_package_signs_request_and_returns_delivered_on_200() -> None
     assert request.url == "https://site.example.com/api/v1/incoming-news-packages"
     assert request.headers[IDEMPOTENCY_KEY_HEADER] == "pkg-1:1"
     assert request.headers[CONNECTION_ID_HEADER] == str(connection_id)
+    assert request.headers["X-Request-Id"] == correlation_id
     assert verify(
         "s3cret",
         timestamp=request.headers["X-Timestamp"],
@@ -112,3 +119,25 @@ async def test_send_package_does_not_retry_permanent_4xx() -> None:
     assert result.status == "failed"
     assert result.error == "http_422"
     assert attempts["count"] == 1
+
+
+async def test_send_package_redacts_transport_exception_details() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("private-url-value", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    result = await send_package(
+        client,
+        connection_id=uuid4(),
+        delivery_url="https://user:private-url-value@site.example.com",
+        hmac_secret="s3cret",
+        idempotency_key="pkg-1:1",
+        body=b"{}",
+        timeout_seconds=5.0,
+        max_attempts=1,
+    )
+    await client.aclose()
+
+    assert result.status == "failed"
+    assert result.error == "transport_connecterror"
+    assert "private-url-value" not in result.error

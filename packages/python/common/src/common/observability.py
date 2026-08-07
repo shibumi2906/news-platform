@@ -28,6 +28,10 @@ class MetricsRegistry:
         with self._lock:
             self._gauges[(name, tuple(sorted(labels.items())))] = value
 
+    def adjust_gauge(self, name: str, value: float, **labels: str) -> None:
+        with self._lock:
+            self._gauges[(name, tuple(sorted(labels.items())))] += value
+
     def render(self) -> str:
         lines: list[str] = []
         with self._lock:
@@ -49,23 +53,30 @@ router = APIRouter(tags=["observability"])
 async def metrics(request: Request) -> str:
     if not request.app.state.settings.metrics_enabled:
         return "# metrics disabled\n"
+    collector = getattr(request.app.state, "metrics_collector", None)
+    if collector is not None:
+        await collector()
     return METRICS.render()
 
 
 def trace_context(value: str | None) -> tuple[str, str]:
     match = _TRACEPARENT.fullmatch(value or "")
-    trace_id = match.group(1) if match and match.group(1) != "0" * 32 else uuid4().hex
+    valid = bool(
+        match and match.group(1) != "0" * 32 and match.group(2) != "0" * 16
+    )
+    trace_id = match.group(1) if match and valid else uuid4().hex
+    flags = match.group(3) if match and valid else "01"
     span_id = uuid4().hex[:16]
-    return trace_id, f"00-{trace_id}-{span_id}-01"
+    return trace_id, f"00-{trace_id}-{span_id}-{flags}"
 
 
 def request_started() -> float:
-    METRICS.gauge("http_requests_in_flight", 1)
+    METRICS.adjust_gauge("http_requests_in_flight", 1)
     return monotonic()
 
 
 def request_finished(started: float, method: str, route: str, status_code: int) -> None:
-    METRICS.gauge("http_requests_in_flight", 0)
+    METRICS.adjust_gauge("http_requests_in_flight", -1)
     METRICS.increment(
         "http_requests_total",
         method=method,

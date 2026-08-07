@@ -81,3 +81,27 @@ def test_configure_logging_reads_level_case_insensitively(
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["event"] == "debug_event"
     assert payload["level"] == "DEBUG"
+
+
+def test_logging_redacts_sensitive_fields_and_exception_messages(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    configure_logging("INFO")
+    logger = get_logger("test.security")
+    try:
+        raise RuntimeError("private-value-must-not-be-logged")
+    except RuntimeError:
+        logger.exception(
+            "safe_failure",
+            password="private-value-must-not-be-logged",
+            nested={"api_token": "another-private-value", "input_tokens": 12},
+        )
+
+    output = capsys.readouterr().out.strip()
+    assert "private-value-must-not-be-logged" not in output
+    assert "another-private-value" not in output
+    payload = json.loads(output)
+    assert payload["password"] == "[REDACTED]"
+    assert payload["nested"]["api_token"] == "[REDACTED]"
+    assert payload["nested"]["input_tokens"] == 12
+    assert payload["exception"] == {"type": "RuntimeError"}
