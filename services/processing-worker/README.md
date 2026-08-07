@@ -35,6 +35,12 @@ celery -A processing_worker.celery_app beat --loglevel=info
 | `PROCESSING_WORKER_BATCH_SIZE` | `50` | Maximum outbox rows per batch |
 | `AI_PROVIDERS` | `fake` | Ordered comma-separated provider adapter names |
 | `AI_MAX_ATTEMPTS_PER_PROVIDER` | `2` | Bounded attempts before fallback |
+| `OPENAI_API_KEY` | unset | Secret API key; required only when `openai` is selected |
+| `OPENAI_MODEL` | `gpt-5-mini` | Requested Responses API model |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Responses API base URL |
+| `OPENAI_TIMEOUT_SECONDS` | `30` | Per-request timeout |
+| `OPENAI_INPUT_COST_PER_MILLION` | `0` | Configured input-token rate for cost estimates |
+| `OPENAI_OUTPUT_COST_PER_MILLION` | `0` | Configured output-token rate for cost estimates |
 
 ## Tests
 

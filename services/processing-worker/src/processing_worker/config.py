@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from common.config import BaseAppSettings, InstanceType
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 
 class Settings(BaseAppSettings):
@@ -16,6 +16,16 @@ class Settings(BaseAppSettings):
     batch_size: int = Field(default=50, alias="PROCESSING_WORKER_BATCH_SIZE")
     ai_providers: str = Field(default="fake", alias="AI_PROVIDERS")
     ai_max_attempts_per_provider: int = Field(default=2, alias="AI_MAX_ATTEMPTS_PER_PROVIDER")
+    openai_api_key: SecretStr | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-5-mini", alias="OPENAI_MODEL")
+    openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
+    openai_timeout_seconds: float = Field(default=30.0, alias="OPENAI_TIMEOUT_SECONDS")
+    openai_input_cost_per_million: float = Field(
+        default=0.0, alias="OPENAI_INPUT_COST_PER_MILLION"
+    )
+    openai_output_cost_per_million: float = Field(
+        default=0.0, alias="OPENAI_OUTPUT_COST_PER_MILLION"
+    )
 
     @classmethod
     def from_env(cls) -> Settings:

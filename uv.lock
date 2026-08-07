@@ -919,6 +919,7 @@ dependencies = [
     { name = "celery", extra = ["redis"] },
     { name = "common" },
     { name = "contracts" },
+    { name = "httpx" },
     { name = "integrator-domain" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
@@ -929,6 +930,7 @@ requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.4" },
     { name = "common", editable = "packages/python/common" },
     { name = "contracts", editable = "packages/python/contracts" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "integrator-domain", editable = "packages/python/integrator-domain" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
 ]
