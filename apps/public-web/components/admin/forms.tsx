@@ -62,3 +62,53 @@ export function ArticleVersionForm({ article }: { article: { id: string; lock_ve
   const latest = article.versions[0]?.content ?? {};
   return <MutationForm label="Create immutable version" onSubmit={async (data) => { const content = JSON.parse(String(data.get("content"))) as unknown; await mutate("site", `/api/v1/articles/${article.id}/versions`, "POST", { content, expected_lock_version: article.lock_version, correction_explanation: data.get("correction_explanation") || null }); }}><label>Version content JSON<textarea name="content" rows={12} defaultValue={JSON.stringify(latest, null, 2)} required /></label><label>Correction explanation<input name="correction_explanation" /></label></MutationForm>;
 }
+
+export function MediaUploadForm() {
+  return <MutationForm label="Upload original" onSubmit={async (data) => {
+    const file = data.get("file");
+    if (!(file instanceof File) || !file.size) throw new Error("Choose a media file");
+    const content = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Could not read file"));
+      reader.onload = () => resolve(String(reader.result).split(",", 2)[1] || "");
+      reader.readAsDataURL(file);
+    });
+    await mutate("site", "/api/v1/admin/media", "POST", {
+      content_base64: content, mime_type: file.type, kind: "original",
+      rights: { license: data.get("license"), attribution: data.get("attribution"), allowed_uses: ["editorial", "distribution"] },
+      provenance: { source: "admin_upload", original_name: file.name },
+    });
+  }}><label>Media file<input name="file" type="file" accept="image/*,video/*,audio/*" required /></label><label>License<input name="license" required /></label><label>Attribution<input name="attribution" /></label></MutationForm>;
+}
+
+export function MediaGenerateForm() {
+  return <MutationForm label="Generate variants" onSubmit={(data) => mutate("site", "/api/v1/admin/media/generate", "POST", { article_version_id: data.get("article_version_id"), variants: Number(data.get("variants") || 3) }).then(() => undefined)}><label>Immutable article version ID<input name="article_version_id" required /></label><label>Variants<input name="variants" type="number" min="1" max="4" defaultValue="3" /></label></MutationForm>;
+}
+
+export function MediaSelectForm({ assetId }: { assetId: string }) {
+  return <MutationForm label="Select & link" onSubmit={(data) => mutate("site", `/api/v1/admin/media/${assetId}/select`, "POST", { article_version_id: data.get("article_version_id"), translation_version_id: data.get("translation_version_id") || null, role: data.get("role") || "hero" }).then(() => undefined)}><label>Article version ID<input name="article_version_id" required /></label><label>Translation version ID (optional)<input name="translation_version_id" /></label><label>Role<select name="role"><option value="hero">Hero</option><option value="inline">Inline</option><option value="social">Social</option></select></label></MutationForm>;
+}
+
+export function MemeTemplateForm() {
+  return <MutationForm label="Create template" onSubmit={(data) => mutate("site", "/api/v1/admin/media/meme-templates", "POST", { name: data.get("name"), base_asset_id: data.get("base_asset_id"), layout: { caption_position: data.get("caption_position") } }).then(() => undefined)}><label>Name<input name="name" required /></label><label>Base asset ID<input name="base_asset_id" required /></label><label>Caption position<select name="caption_position"><option value="bottom">Bottom</option><option value="top">Top</option></select></label></MutationForm>;
+}
+
+export function MemeGenerateForm() {
+  return <MutationForm label="Create meme version" onSubmit={(data) => mutate("site", "/api/v1/admin/media/memes", "POST", { template_id: data.get("template_id"), article_version_id: data.get("article_version_id"), mode: data.get("mode"), caption: data.get("caption") || null }).then(() => undefined)}><label>Template ID<input name="template_id" required /></label><label>Article version ID<input name="article_version_id" required /></label><label>Mode<select name="mode"><option value="manual">Manual</option><option value="ai">AI caption</option></select></label><label>Manual caption<textarea name="caption" maxLength={280} /></label></MutationForm>;
+}
+
+export function VideoProjectForm() {
+  return <MutationForm label="Create script & storyboard" onSubmit={(data) => mutate("site", "/api/v1/admin/media/video-projects", "POST", { article_version_id: data.get("article_version_id") }).then(() => undefined)}><label>Article version ID<input name="article_version_id" required /></label></MutationForm>;
+}
+
+export function DistributionChannelForm() {
+  return <MutationForm label="Add channel" onSubmit={(data) => mutate("site", "/api/v1/admin/distribution/channels", "POST", { name: data.get("name"), kind: data.get("kind"), account_key: data.get("account_key"), credential_ref: data.get("credential_ref") || null, config: { chat_id: data.get("chat_id") } }).then(() => undefined)}><label>Name<input name="name" required /></label><label>Channel<select name="kind"><option value="telegram">Telegram</option><option value="facebook">Facebook (contract)</option><option value="instagram">Instagram (contract)</option><option value="tiktok">TikTok (contract)</option><option value="x">X (contract)</option><option value="youtube">YouTube (contract)</option></select></label><label>Account key<input name="account_key" required /></label><label>Credential env reference<input name="credential_ref" pattern="[A-Z0-9_]+" placeholder="DEV_TELEGRAM" /></label><label>Telegram chat ID<input name="chat_id" /></label></MutationForm>;
+}
+
+export function DistributionScheduleForm({ channels }: { channels: Array<{ id: string; name: string; kind: string }> }) {
+  return <MutationForm label="Schedule delivery" onSubmit={(data) => mutate("site", "/api/v1/admin/distribution/jobs", "POST", { channel_id: data.get("channel_id"), article_version_id: data.get("article_version_id"), translation_version_id: data.get("translation_version_id") || null, media_asset_id: data.get("media_asset_id") || null, scheduled_at: data.get("scheduled_at") || null, idempotency_key: data.get("idempotency_key") || null, max_attempts: 5 }).then(() => undefined)}><label>Channel<select name="channel_id" required>{channels.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.kind}</option>)}</select></label><label>Published article version ID<input name="article_version_id" required /></label><label>Translation version ID<input name="translation_version_id" /></label><label>Media asset ID<input name="media_asset_id" /></label><label>Schedule (UTC)<input type="datetime-local" name="scheduled_at" /></label><label>Idempotency key (optional)<input name="idempotency_key" minLength={8} /></label></MutationForm>;
+}
+
+export function DistributionChannelState({ id, active }: { id: string; active: boolean }) {
+  return <MutationForm label={active ? "Deactivate" : "Activate"} onSubmit={() => mutate("site", `/api/v1/admin/distribution/channels/${id}/${active ? "deactivate" : "activate"}`, "POST", {}).then(() => undefined)}><span /></MutationForm>;
+}

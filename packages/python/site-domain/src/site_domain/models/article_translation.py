@@ -16,7 +16,9 @@ class ArticleTranslationVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint(
             "article_version_id", "language_code", name="uq_article_translation_language"
         ),
-        CheckConstraint("direction IN ('ltr', 'rtl')"),
+        CheckConstraint(
+            "direction IN ('ltr', 'rtl')", name="article_translation_version_direction_check"
+        ),
     )
 
     article_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("article_version.id"))

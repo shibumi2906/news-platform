@@ -53,6 +53,7 @@ mypy_path = [
     "services/source-worker/src",
     "services/processing-worker/src",
     "services/delivery-worker/src",
+    "services/distribution-worker/src",
 ]
 
 [tool.pytest.ini_options]

@@ -19,11 +19,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
 
+from site_api.api.distribution import router as distribution_router
 from site_api.api.editorial import router as editorial_router
 from site_api.api.health import router as health_router
 from site_api.api.ingestion import router as ingestion_router
+from site_api.api.media import router as media_router
 from site_api.api.read_models import admin_router, public_router
 from site_api.config import Settings
+from site_api.media_generation import FakeImageProvider, MediaGateway
+from site_api.storage import S3ObjectStorage
 
 logger = get_logger(__name__)
 
@@ -37,6 +41,16 @@ def create_app() -> FastAPI:
         app.state.settings = settings
         app.state.db_engine = create_engine(settings.database_url)
         app.state.session_factory = create_session_factory(app.state.db_engine)
+        app.state.object_storage = S3ObjectStorage(
+            endpoint_url=settings.s3_endpoint_url,
+            access_key=settings.s3_access_key.get_secret_value(),
+            secret_key=settings.s3_secret_key.get_secret_value(),
+            bucket=settings.s3_bucket,
+            region=settings.s3_region,
+        )
+        app.state.media_gateway = MediaGateway(
+            [FakeImageProvider()], attempts_per_provider=settings.media_attempts_per_provider
+        )
         logger.info(
             "startup",
             instance_id=settings.instance_id,
@@ -44,6 +58,7 @@ def create_app() -> FastAPI:
             app_version=settings.app_version,
         )
         yield
+        await app.state.object_storage.close()
         await app.state.db_engine.dispose()
 
     app = FastAPI(title="Site API", version=settings.app_version, lifespan=lifespan)
@@ -100,6 +115,8 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(ingestion_router)
     app.include_router(editorial_router)
+    app.include_router(distribution_router)
+    app.include_router(media_router)
     app.include_router(public_router)
     app.include_router(admin_router)
     return app

@@ -11,6 +11,7 @@ members = [
     "common",
     "contracts",
     "delivery-worker",
+    "distribution-worker",
     "integrator-api",
     "integrator-domain",
     "news-platform-workspace",
@@ -333,6 +334,29 @@ requires-dist = [
     { name = "contracts", editable = "packages/python/contracts" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "integrator-domain", editable = "packages/python/integrator-domain" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+]
+
+[[package]]
+name = "distribution-worker"
+version = "0.1.0"
+source = { editable = "services/distribution-worker" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "celery", extra = ["redis"] },
+    { name = "common" },
+    { name = "httpx" },
+    { name = "site-domain" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.30" },
+    { name = "celery", extras = ["redis"], specifier = ">=5.4" },
+    { name = "common", editable = "packages/python/common" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "site-domain", editable = "packages/python/site-domain" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
 ]
 
@@ -1211,6 +1235,7 @@ dependencies = [
     { name = "common" },
     { name = "contracts" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "site-domain" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -1222,6 +1247,7 @@ requires-dist = [
     { name = "common", editable = "packages/python/common" },
     { name = "contracts", editable = "packages/python/contracts" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "site-domain", editable = "packages/python/site-domain" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },

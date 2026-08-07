@@ -4,7 +4,8 @@ import { requireSession } from "@/lib/session";
 const links = [
   ["Overview", "/admin"], ["Sources", "/admin/sources"], ["Topics", "/admin/topics"],
   ["Languages", "/admin/languages"], ["Glossary", "/admin/terminology"],
-  ["Incoming", "/admin/incoming"], ["Articles", "/admin/articles"], ["AI telemetry", "/admin/telemetry"],
+  ["Incoming", "/admin/incoming"], ["Articles", "/admin/articles"], ["Media", "/admin/media"],
+  ["Distribution", "/admin/distribution"], ["AI telemetry", "/admin/telemetry"],
 ];
 
 export const dynamic = "force-dynamic";

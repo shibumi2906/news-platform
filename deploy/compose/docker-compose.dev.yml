@@ -110,6 +110,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-site:5432/news_platform_site
       REDIS_URL: redis://redis:6379/0
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-change-me-admin-api-token}
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-change-me}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me}
+      S3_BUCKET: ${SITE_MEDIA_BUCKET:-site-media}
     ports:
       - "8002:8000"
     depends_on:
@@ -118,6 +122,8 @@ services:
       migrate-site:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   public-web:
@@ -293,6 +299,53 @@ services:
       postgres-integrator:
         condition: service_healthy
       migrate-integrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  distribution-worker:
+    build:
+      context: ../..
+      dockerfile: services/distribution-worker/Dockerfile
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000002
+      INSTANCE_TYPE: site
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-site:5432/news_platform_site
+      REDIS_URL: redis://redis:6379/0
+      DISTRIBUTION_SECRET_DEV_TELEGRAM: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BASE_URL: ${TELEGRAM_BASE_URL:-https://api.telegram.org}
+    depends_on:
+      postgres-site:
+        condition: service_healthy
+      migrate-site:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  distribution-worker-beat:
+    build:
+      context: ../..
+      dockerfile: services/distribution-worker/Dockerfile
+    command: ["celery", "-A", "distribution_worker.celery_app", "beat", "--loglevel=info"]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000002
+      INSTANCE_TYPE: site
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-site:5432/news_platform_site
+      REDIS_URL: redis://redis:6379/0
+      DISTRIBUTION_SECRET_DEV_TELEGRAM: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BASE_URL: ${TELEGRAM_BASE_URL:-https://api.telegram.org}
+    depends_on:
+      postgres-site:
+        condition: service_healthy
+      migrate-site:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
