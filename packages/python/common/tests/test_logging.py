@@ -5,7 +5,13 @@ from collections.abc import Iterator
 
 import common.logging as logging_module
 import pytest
-from common.logging import bind_correlation_id, configure_logging, get_correlation_id, get_logger
+from common.logging import (
+    bind_correlation_id,
+    configure_logging,
+    get_correlation_id,
+    get_logger,
+    reset_correlation_id,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -17,8 +23,10 @@ def _reset_correlation_id() -> Iterator[None]:
 
 def test_bind_and_get_correlation_id() -> None:
     assert get_correlation_id() is None
-    bind_correlation_id("11111111-1111-1111-1111-111111111111")
+    token = bind_correlation_id("11111111-1111-1111-1111-111111111111")
     assert get_correlation_id() == "11111111-1111-1111-1111-111111111111"
+    reset_correlation_id(token)
+    assert get_correlation_id() is None
 
 
 def test_configure_logging_emits_single_line_json_to_stdout(

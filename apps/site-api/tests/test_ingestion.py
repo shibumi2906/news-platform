@@ -14,7 +14,9 @@ from site_api.errors import (
     IdempotencyConflictError,
     InvalidSignatureError,
     PayloadValidationError,
+    ReplayNonceError,
     ReplayWindowExceededError,
+    UnsupportedSchemaVersionError,
 )
 from site_api.ingestion import ingest_package
 from site_domain.models import IncomingPackage, IncomingPackageVersion, IntegratorConnection
@@ -312,8 +314,6 @@ async def test_ingest_package_returns_duplicate_for_an_already_stored_version(
             replay_window_seconds=300.0,
         )
 
-    # Same version, different idempotency key (e.g. a manual resend):
-    # detected as a duplicate at the IncomingPackageVersion layer.
     second_key = f"{package_id}:1:resend"
     second_headers = _headers(idempotency_key=second_key, body=body)
     async with session_factory() as session:
@@ -327,10 +327,61 @@ async def test_ingest_package_returns_duplicate_for_an_already_stored_version(
             body=body,
             replay_window_seconds=300.0,
         )
-
     assert status_code == 200
     assert receipt.status == "duplicate"
 
+
+async def test_ingest_package_rejects_reused_nonce_with_a_new_idempotency_key(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    connection_id = await _seed_connection(session_factory)
+    body = _envelope_body()
+    first = _headers(idempotency_key="first", body=body)
     async with session_factory() as session:
-        versions = (await session.execute(select(IncomingPackageVersion))).scalars().all()
-        assert len(versions) == 1
+        await ingest_package(
+            session,
+            connection_id=connection_id,
+            idempotency_key="first",
+            body=body,
+            replay_window_seconds=300.0,
+            **first,
+        )
+
+    second_body = _envelope_body()
+    second = _headers(idempotency_key="second", body=second_body)
+    second["nonce"] = first["nonce"]
+    second["signature"] = sign(
+        SECRET,
+        timestamp=second["timestamp"],
+        nonce=second["nonce"],
+        idempotency_key="second",
+        body=second_body,
+    )
+    with pytest.raises(ReplayNonceError):
+        async with session_factory() as session:
+            await ingest_package(
+                session,
+                connection_id=connection_id,
+                idempotency_key="second",
+                body=second_body,
+                replay_window_seconds=300.0,
+                **second,
+            )
+
+
+async def test_ingest_package_rejects_unknown_schema_major(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    connection_id = await _seed_connection(session_factory)
+    body = _envelope_body().replace(b'"schema_version":"1.0"', b'"schema_version":"2.0"')
+    headers = _headers(idempotency_key="schema-v2", body=body)
+    with pytest.raises(UnsupportedSchemaVersionError):
+        async with session_factory() as session:
+            await ingest_package(
+                session,
+                connection_id=connection_id,
+                idempotency_key="schema-v2",
+                body=body,
+                replay_window_seconds=300.0,
+                **headers,
+            )

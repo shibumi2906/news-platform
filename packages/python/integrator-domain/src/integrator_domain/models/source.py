@@ -21,6 +21,8 @@ class Source(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255))
     feed_url: Mapped[str] = mapped_column(String(2048))
     is_active: Mapped[bool] = mapped_column(default=True)
+    etag: Mapped[str | None] = mapped_column(String(1024), default=None)
+    last_modified: Mapped[str | None] = mapped_column(String(1024), default=None)
 
 
 class SourceMaterial(Base, UUIDPrimaryKeyMixin, TimestampMixin):

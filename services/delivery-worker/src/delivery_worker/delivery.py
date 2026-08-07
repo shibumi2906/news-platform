@@ -178,9 +178,9 @@ async def _deliver_to_connection(
         return True
 
     attempts_result = await session.execute(
-        select(func.count()).select_from(DeliveryAttempt).where(
-            DeliveryAttempt.delivery_id == delivery.id
-        )
+        select(func.count())
+        .select_from(DeliveryAttempt)
+        .where(DeliveryAttempt.delivery_id == delivery.id)
     )
     attempt_number = attempts_result.scalar_one() + 1
 

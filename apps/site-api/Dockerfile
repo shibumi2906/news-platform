@@ -18,6 +18,7 @@ COPY packages/python/common packages/python/common
 COPY packages/python/contracts packages/python/contracts
 COPY packages/python/site-domain packages/python/site-domain
 COPY apps/site-api apps/site-api
+COPY migrations migrations
 
 RUN uv sync --package site-api --no-dev
 

@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import uuid
 
+from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
-
-from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class CorrectionNotice(Base, UUIDPrimaryKeyMixin, TimestampMixin):

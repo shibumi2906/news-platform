@@ -18,6 +18,7 @@ COPY packages/python/common packages/python/common
 COPY packages/python/contracts packages/python/contracts
 COPY packages/python/integrator-domain packages/python/integrator-domain
 COPY services/processing-worker services/processing-worker
+COPY migrations migrations
 
 RUN uv sync --package processing-worker --no-dev
 

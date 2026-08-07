@@ -9,6 +9,7 @@ from common.signing import (
     IDEMPOTENCY_KEY_HEADER,
     NONCE_HEADER,
     SIGNATURE_HEADER,
+    SIGNATURE_VERSION_HEADER,
     TIMESTAMP_HEADER,
 )
 from contracts.ingestion import IncomingPackageReceipt
@@ -26,6 +27,7 @@ async def receive_incoming_package(
     response: Response,
     x_connection_id: str = Header(alias=CONNECTION_ID_HEADER),
     x_signature: str = Header(alias=SIGNATURE_HEADER),
+    x_signature_version: str = Header(alias=SIGNATURE_VERSION_HEADER),
     x_timestamp: str = Header(alias=TIMESTAMP_HEADER),
     x_nonce: str = Header(alias=NONCE_HEADER),
     idempotency_key: str = Header(alias=IDEMPOTENCY_KEY_HEADER),
@@ -44,6 +46,7 @@ async def receive_incoming_package(
             signature=x_signature,
             timestamp=x_timestamp,
             nonce=x_nonce,
+            signature_version=x_signature_version,
             idempotency_key=idempotency_key,
             body=body,
             replay_window_seconds=request.app.state.settings.replay_window_seconds,

@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from common.signing import verify
+from common.signing import SIGNATURE_VERSION, verify
 from common.time import utc_now
 from contracts.ingestion import IncomingPackageReceipt
 from contracts.package import CanonicalNewsPackageEnvelope
@@ -36,7 +36,10 @@ from site_api.errors import (
     IdempotencyConflictError,
     InvalidSignatureError,
     PayloadValidationError,
+    ReplayNonceError,
     ReplayWindowExceededError,
+    UnsupportedSchemaVersionError,
+    UnsupportedSignatureVersionError,
 )
 
 _ACCEPTED_STATUS_CODE = 201
@@ -53,10 +56,14 @@ async def ingest_package(
     idempotency_key: str,
     body: bytes,
     replay_window_seconds: float,
+    signature_version: str = SIGNATURE_VERSION,
 ) -> tuple[IncomingPackageReceipt, int]:
     connection = await session.get(IntegratorConnection, connection_id)
     if connection is None or not connection.is_active:
         raise ConnectionNotFoundError("unknown or inactive connection")
+
+    if signature_version != SIGNATURE_VERSION:
+        raise UnsupportedSignatureVersionError("unsupported signature version")
 
     _check_replay_window(timestamp, replay_window_seconds)
 
@@ -76,6 +83,9 @@ async def ingest_package(
     if existing_attempt is not None:
         return _replay_stored_attempt(existing_attempt, request_body_hash)
 
+    if await _nonce_exists(session, connection_id, nonce):
+        raise ReplayNonceError("nonce has already been used")
+
     try:
         envelope = CanonicalNewsPackageEnvelope.model_validate_json(body)
     except ValidationError as exc:
@@ -83,6 +93,9 @@ async def ingest_package(
             "invalid canonical news package envelope",
             details={"errors": _summarize_validation_errors(exc)},
         ) from exc
+
+    if envelope.schema_version.split(".", 1)[0] != "1":
+        raise UnsupportedSchemaVersionError("unsupported canonical package schema version")
 
     status = await _upsert_incoming_package(session, connection_id=connection_id, envelope=envelope)
     receipt = IncomingPackageReceipt(
@@ -95,6 +108,7 @@ async def ingest_package(
         IngestionAttempt(
             connection_id=connection_id,
             idempotency_key=idempotency_key,
+            nonce=nonce,
             request_body_hash=request_body_hash,
             package_id=envelope.package_id,
             package_version=envelope.package_version,
@@ -122,9 +136,7 @@ def _replay_stored_attempt(
     attempt: IngestionAttempt, request_body_hash: str
 ) -> tuple[IncomingPackageReceipt, int]:
     if attempt.request_body_hash != request_body_hash:
-        raise IdempotencyConflictError(
-            "idempotency key already used with a different request body"
-        )
+        raise IdempotencyConflictError("idempotency key already used with a different request body")
     receipt = IncomingPackageReceipt.model_validate(attempt.response_body)
     status_code = _ACCEPTED_STATUS_CODE if receipt.status == "accepted" else _DUPLICATE_STATUS_CODE
     return receipt, status_code
@@ -142,11 +154,23 @@ async def _find_attempt(
     return result.scalar_one_or_none()
 
 
+async def _nonce_exists(session: AsyncSession, connection_id: UUID, nonce: str) -> bool:
+    result = await session.execute(
+        select(IngestionAttempt.id).where(
+            IngestionAttempt.connection_id == connection_id,
+            IngestionAttempt.nonce == nonce,
+        )
+    )
+    return result.first() is not None
+
+
 def _check_replay_window(timestamp: str, replay_window_seconds: float) -> None:
     try:
         parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     except ValueError as exc:
         raise ReplayWindowExceededError("malformed timestamp") from exc
+    if parsed.tzinfo is None:
+        raise ReplayWindowExceededError("timestamp must include a timezone")
     delta = abs((utc_now() - parsed).total_seconds())
     if delta > replay_window_seconds:
         raise ReplayWindowExceededError("timestamp outside the accepted replay window")

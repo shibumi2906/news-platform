@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import json
 import sys
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from loguru import logger as _loguru_logger
 
@@ -27,8 +28,17 @@ def get_correlation_id() -> str | None:
     return _correlation_id.get()
 
 
-def bind_correlation_id(correlation_id: str) -> None:
-    _correlation_id.set(correlation_id)
+def bind_correlation_id(correlation_id: str) -> Token[str | None]:
+    """Bind a trusted request/task correlation ID and return its reset token."""
+    return _correlation_id.set(correlation_id)
+
+
+def reset_correlation_id(token: Token[str | None]) -> None:
+    _correlation_id.reset(token)
+
+
+def new_correlation_id() -> str:
+    return str(uuid4())
 
 
 def _json_sink(message: Message) -> None:

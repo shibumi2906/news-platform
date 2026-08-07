@@ -12,10 +12,9 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-
-from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class ArticleVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):

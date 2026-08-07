@@ -16,9 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 class Event(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "event"
-    __table_args__ = (
-        UniqueConstraint("source_material_id", name="uq_event_source_material"),
-    )
+    __table_args__ = (UniqueConstraint("source_material_id", name="uq_event_source_material"),)
 
     source_material_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_material.id"))
     stage: Mapped[str] = mapped_column(String(32), default="reported")

@@ -12,9 +12,7 @@ class Settings(BaseAppSettings):
 
     #: docs/14 §2: requests with a timestamp outside this window are rejected
     #: as a replay, regardless of signature validity.
-    replay_window_seconds: float = Field(
-        default=300.0, alias="SITE_API_REPLAY_WINDOW_SECONDS"
-    )
+    replay_window_seconds: float = Field(default=300.0, alias="SITE_API_REPLAY_WINDOW_SECONDS")
 
     @classmethod
     def from_env(cls) -> Settings:

@@ -22,6 +22,7 @@ from source_worker.rss import parse_rss_feed
 configure_logging(settings.log_level)
 logger = get_logger(__name__)
 
+
 @app.task(name="source_worker.poll_source")  # type: ignore[untyped-decorator]
 def poll_source(source_id: str) -> dict[str, int]:
     return asyncio.run(_poll_source(UUID(source_id)))
@@ -54,7 +55,13 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                 source.feed_url,
                 user_agent=settings.http_user_agent,
                 timeout_seconds=settings.http_timeout_seconds,
+                etag=source.etag,
+                last_modified=source.last_modified,
             )
+
+        if result.status == "not_modified":
+            logger.info("source_poll_not_modified", source_id=str(source_id))
+            return {"created": 0, "duplicates": 0}
 
         if result.status != "ok":
             logger.warning(
@@ -65,10 +72,14 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             )
             return {"created": 0, "duplicates": 0}
 
+        async with session_factory() as session, session.begin():
+            source = await session.get(Source, source_id)
+            if source is not None:
+                source.etag = result.etag
+                source.last_modified = result.last_modified
+
         fetched_at = utc_now()
-        candidates = parse_rss_feed(
-            result.body or b"", source_id=source_id, fetched_at=fetched_at
-        )
+        candidates = parse_rss_feed(result.body or b"", source_id=source_id, fetched_at=fetched_at)
         candidates = candidates[: settings.max_candidates_per_poll]
 
         stats = await ingest_candidates(session_factory, candidates)

@@ -12,9 +12,7 @@ from pathlib import Path
 
 from contracts.package import CanonicalNewsPackageEnvelope
 
-SCHEMA_PATH = (
-    Path(__file__).resolve().parents[4] / "schemas" / "canonical_news_package.schema.json"
-)
+SCHEMA_PATH = Path(__file__).resolve().parents[4] / "schemas" / "canonical_news_package.schema.json"
 
 
 def export_schema() -> str:

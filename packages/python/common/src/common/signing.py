@@ -32,9 +32,7 @@ IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
 CONNECTION_ID_HEADER = "X-Connection-Id"
 
 
-def sign(
-    secret: str, *, timestamp: str, nonce: str, idempotency_key: str, body: bytes
-) -> str:
+def sign(secret: str, *, timestamp: str, nonce: str, idempotency_key: str, body: bytes) -> str:
     base = f"{timestamp}\n{nonce}\n{idempotency_key}\n".encode() + body
     return hmac.new(secret.encode("utf-8"), base, hashlib.sha256).hexdigest()
 

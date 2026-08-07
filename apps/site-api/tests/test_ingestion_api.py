@@ -11,6 +11,8 @@ from common.signing import (
     IDEMPOTENCY_KEY_HEADER,
     NONCE_HEADER,
     SIGNATURE_HEADER,
+    SIGNATURE_VERSION,
+    SIGNATURE_VERSION_HEADER,
     TIMESTAMP_HEADER,
     sign,
 )
@@ -86,6 +88,7 @@ def _signed_headers(
     return {
         CONNECTION_ID_HEADER: str(connection_id),
         SIGNATURE_HEADER: signature,
+        SIGNATURE_VERSION_HEADER: SIGNATURE_VERSION,
         TIMESTAMP_HEADER: timestamp,
         NONCE_HEADER: nonce,
         IDEMPOTENCY_KEY_HEADER: idempotency_key,
@@ -106,9 +109,7 @@ async def test_receive_incoming_package_accepts_a_signed_request(
 
     with TestClient(app) as client:
         app.state.session_factory = sqlite_session_factory
-        response = client.post(
-            "/api/v1/incoming-news-packages", content=body, headers=headers
-        )
+        response = client.post("/api/v1/incoming-news-packages", content=body, headers=headers)
 
     assert response.status_code == 201
     payload = response.json()
@@ -130,9 +131,7 @@ async def test_receive_incoming_package_rejects_bad_signature(
 
     with TestClient(app) as client:
         app.state.session_factory = sqlite_session_factory
-        response = client.post(
-            "/api/v1/incoming-news-packages", content=body, headers=headers
-        )
+        response = client.post("/api/v1/incoming-news-packages", content=body, headers=headers)
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "invalid_signature"
@@ -148,9 +147,7 @@ async def test_receive_incoming_package_rejects_malformed_connection_id_header(
 
     with TestClient(app) as client:
         app.state.session_factory = sqlite_session_factory
-        response = client.post(
-            "/api/v1/incoming-news-packages", content=body, headers=headers
-        )
+        response = client.post("/api/v1/incoming-news-packages", content=body, headers=headers)
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_connection_id"

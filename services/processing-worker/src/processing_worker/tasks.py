@@ -15,6 +15,7 @@ from processing_worker.processing import process_pending_events
 configure_logging(settings.log_level)
 logger = get_logger(__name__)
 
+
 @app.task(name="processing_worker.process_pending_events")  # type: ignore[untyped-decorator]
 def process_pending_events_task() -> dict[str, int]:
     return asyncio.run(_process_pending_events())

@@ -7,13 +7,12 @@ sequence.
 
 ## Current stage
 
-**Stage 1A — Repository Foundation.** This stage contains only shared
-infrastructure scaffolding: workspace tooling, the `common` package
-(config, logging, errors, ids, time, db, outbox interface) and bare
-FastAPI skeletons for `integrator-api` and `site-api` with liveness/readiness
-health checks. It intentionally contains **no domain logic, no business
-endpoints and no domain database tables**. Those are added in Stage 1B
-(the RSS → Incoming Package vertical).
+**Stage 1B — RSS to Site Ingestion vertical.** The repository includes a
+working narrow path: RSS/Atom polling → normalized source material →
+canonical news package → signed delivery → idempotent Site ingestion.
+It includes domain tables, migrations, Celery workers, health checks and
+contract tests. Editorial workflow, AI, public web and later stages remain
+out of scope.
 
 Logging is centralized in `packages/python/common` (see its README): JSON
 lines on stdout only, level via `LOG_LEVEL`, correlation-id propagation via
@@ -45,8 +44,10 @@ uv run pytest
 docker compose -f deploy/compose/docker-compose.dev.yml up --build
 ```
 
-This starts two isolated PostgreSQL databases (integrator, site), Redis,
-MinIO and the two API skeletons. Health checks:
+This starts two isolated PostgreSQL databases, Redis, MinIO, applies both
+Alembic migrations, and starts the two APIs plus Stage 1B workers. Source and
+connection records still need operator provisioning; Stage 1B has no admin UI.
+Health checks:
 
 ```text
 GET http://localhost:8001/health/live
@@ -58,4 +59,4 @@ GET http://localhost:8002/health/ready
 ## Repository layout
 
 See `docs/23_REPOSITORY_STRUCTURE.md` for the target full-product tree.
-Stage 1A only populates the subset needed to run the shared foundation.
+See `docs/28_STAGE_1B_STATUS.md` for implemented scope and exclusions.

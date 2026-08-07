@@ -29,6 +29,21 @@ class InvalidSignatureError(DomainError):
     status_code = 401
 
 
+class UnsupportedSignatureVersionError(DomainError):
+    code = "unsupported_signature_version"
+    status_code = 401
+
+
+class ReplayNonceError(DomainError):
+    code = "replay_nonce"
+    status_code = 401
+
+
+class UnsupportedSchemaVersionError(DomainError):
+    code = "unsupported_schema_version"
+    status_code = 422
+
+
 class IdempotencyConflictError(DomainError):
     code = "idempotency_conflict"
     status_code = 409

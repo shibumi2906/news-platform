@@ -4,8 +4,15 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from common.db import create_engine
-from common.logging import configure_logging, get_logger
-from fastapi import FastAPI
+from common.logging import (
+    bind_correlation_id,
+    configure_logging,
+    get_logger,
+    new_correlation_id,
+    reset_correlation_id,
+)
+from fastapi import FastAPI, Request, Response
+from starlette.middleware.base import RequestResponseEndpoint
 
 from integrator_api.api.health import router as health_router
 from integrator_api.config import Settings
@@ -31,5 +38,24 @@ def create_app() -> FastAPI:
         await app.state.db_engine.dispose()
 
     app = FastAPI(title="Integrator API", version=settings.app_version, lifespan=lifespan)
+
+    @app.middleware("http")
+    async def correlation_id_middleware(
+        request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        correlation_id = new_correlation_id()
+        token = bind_correlation_id(correlation_id)
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception(
+                "unhandled_request_exception", method=request.method, path=request.url.path
+            )
+            raise
+        finally:
+            reset_correlation_id(token)
+        response.headers["X-Request-Id"] = correlation_id
+        return response
+
     app.include_router(health_router)
     return app

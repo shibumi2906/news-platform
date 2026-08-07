@@ -14,12 +14,8 @@ class Settings(BaseAppSettings):
     http_user_agent: str = Field(
         default="news-platform-source-worker/0.1", alias="SOURCE_WORKER_USER_AGENT"
     )
-    max_candidates_per_poll: int = Field(
-        default=200, alias="SOURCE_WORKER_MAX_CANDIDATES_PER_POLL"
-    )
-    poll_interval_seconds: float = Field(
-        default=300.0, alias="SOURCE_WORKER_POLL_INTERVAL_SECONDS"
-    )
+    max_candidates_per_poll: int = Field(default=200, alias="SOURCE_WORKER_MAX_CANDIDATES_PER_POLL")
+    poll_interval_seconds: float = Field(default=300.0, alias="SOURCE_WORKER_POLL_INTERVAL_SECONDS")
 
     @classmethod
     def from_env(cls) -> Settings:

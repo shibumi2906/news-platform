@@ -31,6 +31,28 @@ services:
       timeout: 3s
       retries: 10
 
+  migrate-integrator:
+    build:
+      context: ../..
+      dockerfile: services/processing-worker/Dockerfile
+    command: ["alembic", "-c", "migrations/integrator/alembic.ini", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+
+  migrate-site:
+    build:
+      context: ../..
+      dockerfile: apps/site-api/Dockerfile
+    command: ["alembic", "-c", "migrations/site/alembic.ini", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-site:5432/news_platform_site
+    depends_on:
+      postgres-site:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
     healthcheck:
@@ -71,6 +93,8 @@ services:
     depends_on:
       postgres-integrator:
         condition: service_healthy
+      migrate-integrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -89,6 +113,8 @@ services:
     depends_on:
       postgres-site:
         condition: service_healthy
+      migrate-site:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -105,6 +131,8 @@ services:
     depends_on:
       postgres-integrator:
         condition: service_healthy
+      migrate-integrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -128,6 +156,8 @@ services:
     depends_on:
       postgres-integrator:
         condition: service_healthy
+      migrate-integrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -144,6 +174,8 @@ services:
     depends_on:
       postgres-integrator:
         condition: service_healthy
+      migrate-integrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -167,6 +199,8 @@ services:
     depends_on:
       postgres-integrator:
         condition: service_healthy
+      migrate-integrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -183,6 +217,8 @@ services:
     depends_on:
       postgres-integrator:
         condition: service_healthy
+      migrate-integrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -206,6 +242,8 @@ services:
     depends_on:
       postgres-integrator:
         condition: service_healthy
+      migrate-integrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 

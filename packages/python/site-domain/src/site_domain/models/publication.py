@@ -10,10 +10,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-
-from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 SCHEDULED = "scheduled"
 PUBLISHING = "publishing"

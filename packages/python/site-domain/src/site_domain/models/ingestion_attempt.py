@@ -21,10 +21,12 @@ class IngestionAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint(
             "connection_id", "idempotency_key", name="uq_ingestion_attempt_connection_idempotency"
         ),
+        UniqueConstraint("connection_id", "nonce", name="uq_ingestion_attempt_connection_nonce"),
     )
 
     connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("integrator_connection.id"))
     idempotency_key: Mapped[str] = mapped_column(String(255))
+    nonce: Mapped[str] = mapped_column(String(255), default="")
     request_body_hash: Mapped[str] = mapped_column(String(64))
     package_id: Mapped[uuid.UUID]
     package_version: Mapped[int] = mapped_column(Integer)

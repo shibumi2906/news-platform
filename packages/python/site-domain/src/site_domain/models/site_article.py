@@ -9,10 +9,10 @@ the version they last read or the write is rejected as a conflict.
 
 from __future__ import annotations
 
+from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import CheckConstraint, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from site_domain.workflow import ARTICLE_STATUSES, RECEIVED
 
 
