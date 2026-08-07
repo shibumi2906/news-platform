@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from common.config import BaseAppSettings, InstanceType
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 
 class Settings(BaseAppSettings):
@@ -13,6 +13,7 @@ class Settings(BaseAppSettings):
     #: docs/14 §2: requests with a timestamp outside this window are rejected
     #: as a replay, regardless of signature validity.
     replay_window_seconds: float = Field(default=300.0, alias="SITE_API_REPLAY_WINDOW_SECONDS")
+    admin_api_token: SecretStr | None = Field(default=None, alias="ADMIN_API_TOKEN")
 
     @classmethod
     def from_env(cls) -> Settings:

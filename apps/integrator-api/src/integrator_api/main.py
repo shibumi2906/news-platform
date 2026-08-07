@@ -16,6 +16,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from integrator_api.api.ai_admin import router as ai_admin_router
 from integrator_api.api.health import router as health_router
+from integrator_api.api.operations import router as operations_router
 from integrator_api.api.sources import router as sources_router
 from integrator_api.config import Settings
 
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
         await app.state.db_engine.dispose()
 
     app = FastAPI(title="Integrator API", version=settings.app_version, lifespan=lifespan)
+    app.state.settings = settings
 
     @app.middleware("http")
     async def correlation_id_middleware(
@@ -63,4 +65,5 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(sources_router)
     app.include_router(ai_admin_router)
+    app.include_router(operations_router)
     return app

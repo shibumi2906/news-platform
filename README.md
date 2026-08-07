@@ -7,7 +7,7 @@ sequence.
 
 ## Current stage
 
-**AI Core and multilingual vertical slice.** The repository includes source
+**Public Web and Admin UI vertical slice.** The repository includes source
 ingestion, Site editorial workflow and a provider-neutral AI path:
 database-managed topics and prompts → relevance → fact/entity extraction →
 event clustering → versioned article draft → language detection and configured
@@ -15,8 +15,10 @@ translations → signed Site ingestion. The seeded 16-language catalog, target
 languages and terminology are managed in PostgreSQL through Integrator Admin
 API. Original and translated versions remain separate and translations are
 linked to the exact source `ArticleVersion`. Drafts enter editorial review and
-are never auto-published. Media generation and the public web remain out of
-scope.
+are never auto-published. A Next.js App Router application exposes the
+published Site read model, multilingual/RTL article rendering, SEO/RSS/sitemap,
+and session-protected Integrator/Site administration. Media generation,
+distribution and commercial features remain out of scope.
 
 Logging is centralized in `packages/python/common` (see its README): JSON
 lines on stdout only, level via `LOG_LEVEL`, correlation-id propagation via
@@ -49,8 +51,9 @@ docker compose -f deploy/compose/docker-compose.dev.yml up --build
 ```
 
 This starts two isolated PostgreSQL databases, Redis, MinIO, applies both
-Alembic migrations, and starts the two APIs plus Stage 1B workers. Source and
-connection records still need operator provisioning; Stage 1B has no admin UI.
+Alembic migrations, and starts the two APIs, workers and Next.js application.
+Open `http://localhost:3000`; development admin credentials come from
+`ADMIN_USERNAME`/`ADMIN_PASSWORD` and must be replaced outside local development.
 Health checks:
 
 ```text

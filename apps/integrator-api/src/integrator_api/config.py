@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from common.config import BaseAppSettings, InstanceType
+from pydantic import Field, SecretStr
 
 
 class Settings(BaseAppSettings):
@@ -8,6 +9,7 @@ class Settings(BaseAppSettings):
     this application only ever runs as part of an integrator installation."""
 
     instance_type: InstanceType = InstanceType.INTEGRATOR
+    admin_api_token: SecretStr | None = Field(default=None, alias="ADMIN_API_TOKEN")
 
     @classmethod
     def from_env(cls) -> Settings:

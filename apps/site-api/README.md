@@ -12,3 +12,7 @@ uv run --package site-api uvicorn site_api.main:create_app --factory --reload --
 
 Requires `INSTANCE_ID`, `INSTANCE_TYPE`, `DATABASE_URL` in the environment
 (see root `.env.example`).
+
+Public read models are under `/api/v1/public`; Site Admin read models are under
+`/api/v1/admin`. When `ADMIN_API_TOKEN` is configured, editorial and admin
+routes require the matching `X-Admin-Token` supplied by the Next.js BFF.

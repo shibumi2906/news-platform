@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from common.auth import require_admin_api_token
+from fastapi import APIRouter, Depends, HTTPException, Request
 from integrator_domain.models import Source
 from pydantic import BaseModel, ConfigDict, HttpUrl
 from sqlalchemy import select
 
-router = APIRouter(prefix="/api/v1/sources", tags=["sources"])
+router = APIRouter(
+    prefix="/api/v1/sources",
+    tags=["sources"],
+    dependencies=[Depends(require_admin_api_token)],
+)
 
 
 class SourceInput(BaseModel):

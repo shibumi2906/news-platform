@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Request
+from common.auth import require_admin_api_token
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel
 
 from site_api.editorial import (
@@ -16,7 +17,11 @@ from site_api.editorial import (
     unpublish,
 )
 
-router = APIRouter(prefix="/api/v1", tags=["editorial"])
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["editorial"],
+    dependencies=[Depends(require_admin_api_token)],
+)
 
 
 class ArticleResponse(BaseModel):

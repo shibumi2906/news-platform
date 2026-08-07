@@ -1,0 +1,10 @@
+import { notFound } from "next/navigation";
+import { ArticleVersionForm, ArticleWorkflow } from "@/components/admin/forms";
+import { getAdminArticle } from "@/lib/api";
+
+export default async function ArticleAdminPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  let article;
+  try { article = await getAdminArticle(id); } catch (error) { if (error instanceof Response && error.status === 404) notFound(); throw error; }
+  return <><header className="admin-heading"><div><p className="kicker">Editorial record</p><h1>Article {article.id.slice(0, 8)}</h1></div><span className={`status status-${article.status}`}>{article.status.replaceAll("_", " ")}</span></header><section className="admin-panel"><h2>Workflow</h2><p>Optimistic lock: {article.lock_version} · latest immutable version: {article.latest_version_number}</p><ArticleWorkflow article={article} /></section><div className="admin-two-column"><section className="admin-panel"><h2>ArticleVersion history</h2><div className="version-stack">{article.versions.map((version) => <details key={String(version.id)}><summary>Version {String(version.version_number)} · {String(version.created_by_actor_id)}</summary><pre>{JSON.stringify(version.content, null, 2)}</pre></details>)}</div><h3>Create next version</h3><ArticleVersionForm article={article} /></section><aside><section className="admin-panel"><h2>Translations</h2><div className="version-stack">{article.translations.map((translation) => <details key={String(translation.id)} dir={String(translation.direction)}><summary>{String(translation.language_code).toUpperCase()} · {String(translation.direction)}</summary><pre>{JSON.stringify(translation.content, null, 2)}</pre></details>)}</div></section><section className="admin-panel"><h2>Review history</h2>{article.reviews.length ? article.reviews.map((review) => <p key={String(review.id)}><strong>{String(review.decision)}</strong> · {String(review.reviewer_actor_id)}</p>) : <p>No decisions yet.</p>}</section></aside></div></>;
+}

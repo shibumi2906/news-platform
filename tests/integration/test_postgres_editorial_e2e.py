@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import asyncpg
+import httpx
 import pytest
 from common.db import create_engine, create_session_factory
 from common.signing import sign
@@ -29,6 +30,7 @@ from site_api.editorial import (
     unpublish,
 )
 from site_api.ingestion import ingest_package
+from site_api.main import create_app
 from site_domain.models import IntegratorConnection, Publication
 from sqlalchemy import select
 
@@ -161,10 +163,44 @@ async def _run() -> None:
                     actor_id="editor",
                     expected_lock_version=article.lock_version,
                 )
+                published_article_id = article.id
+                published_lock_version = article.lock_version
+            os.environ.update(
+                INSTANCE_ID="22222222-2222-2222-2222-222222222222",
+                INSTANCE_TYPE="site",
+                DATABASE_URL=env["DATABASE_URL"],
+                ADMIN_API_TOKEN="public-web-e2e-token",
+            )
+            app = create_app()
+            app.state.session_factory = factory
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://site"
+            ) as client:
+                public = await client.get(
+                    f"/api/v1/public/articles/{published_article_id}"
+                )
+                assert public.status_code == 200
+                assert public.json()["title"] == "Corrected"
+                assert (await client.get("/api/v1/admin/articles")).status_code == 401
+                admin_articles = await client.get(
+                    "/api/v1/admin/articles",
+                    headers={"X-Admin-Token": "public-web-e2e-token"},
+                )
+                assert admin_articles.status_code == 200
+                assert admin_articles.json()[0]["status"] == "published"
+            async with factory() as session:
                 article = await unpublish(
-                    session, article_id=article.id, expected_lock_version=article.lock_version
+                    session,
+                    article_id=published_article_id,
+                    expected_lock_version=published_lock_version,
                 )
                 assert article.status == "unpublished"
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://site"
+            ) as client:
+                assert (
+                    await client.get(f"/api/v1/public/articles/{published_article_id}")
+                ).status_code == 404
             async with factory() as session:
                 publication = (await session.execute(select(Publication))).scalar_one()
                 assert publication.active_article_version_id is not None

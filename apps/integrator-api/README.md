@@ -12,6 +12,11 @@ configuration.
   target-translation flags, priority and RTL/LTR direction.
 - `/api/v1/ai/terminology` manages source/target glossary entries. Terminology
   values are never included in structured logs.
+- `/api/v1/admin/ai-runs` exposes redacted provider/model, token, latency, cost
+  and error telemetry; prompt inputs and outputs are never returned.
+
+Set `ADMIN_API_TOKEN` to protect all Integrator administration routes. The
+Next.js BFF sends it server-to-server and never exposes it to browser code.
 
 ## Run locally
 

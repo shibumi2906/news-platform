@@ -62,11 +62,16 @@ async def _run() -> None:
                 INSTANCE_ID="11111111-1111-1111-1111-111111111111",
                 INSTANCE_TYPE="integrator",
                 DATABASE_URL=sqlalchemy_url,
+                ADMIN_API_TOKEN="source-e2e-token",
             )
             app = create_app()
             app.state.session_factory = factory
             transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://test",
+                headers={"X-Admin-Token": "source-e2e-token"},
+            ) as client:
                 created = await client.post(
                     "/api/v1/sources",
                     json={

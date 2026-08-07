@@ -22,6 +22,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from site_api.api.editorial import router as editorial_router
 from site_api.api.health import router as health_router
 from site_api.api.ingestion import router as ingestion_router
+from site_api.api.read_models import admin_router, public_router
 from site_api.config import Settings
 
 logger = get_logger(__name__)
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
         await app.state.db_engine.dispose()
 
     app = FastAPI(title="Site API", version=settings.app_version, lifespan=lifespan)
+    app.state.settings = settings
 
     @app.middleware("http")
     async def correlation_id_middleware(
@@ -98,4 +100,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(ingestion_router)
     app.include_router(editorial_router)
+    app.include_router(public_router)
+    app.include_router(admin_router)
     return app

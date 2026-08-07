@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from common.auth import require_admin_api_token
 from common.logging import get_logger
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from integrator_domain.models import (
     LanguageConfig,
     PromptTemplate,
@@ -17,7 +18,11 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/api/v1/ai", tags=["ai-admin"])
+router = APIRouter(
+    prefix="/api/v1/ai",
+    tags=["ai-admin"],
+    dependencies=[Depends(require_admin_api_token)],
+)
 logger = get_logger(__name__)
 
 
