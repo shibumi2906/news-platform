@@ -5,10 +5,17 @@ from uuid import UUID
 
 from common.logging import get_logger
 from fastapi import APIRouter, HTTPException, Request, Response
-from integrator_domain.models import PromptTemplate, PromptVersion, Topic
+from integrator_domain.models import (
+    LanguageConfig,
+    PromptTemplate,
+    PromptVersion,
+    TerminologyEntry,
+    Topic,
+)
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/v1/ai", tags=["ai-admin"])
 logger = get_logger(__name__)
@@ -60,6 +67,34 @@ class PromptOutput(BaseModel):
     active_version_id: UUID
     active_version: int
     output_schema: str
+
+
+class LanguageInput(BaseModel):
+    code: str = Field(pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
+    name: str = Field(min_length=1, max_length=128)
+    direction: str = Field(pattern=r"^(ltr|rtl)$")
+    priority: int = 0
+    is_active: bool = True
+    translation_enabled: bool = False
+
+
+class LanguageOutput(LanguageInput):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+
+
+class TerminologyInput(BaseModel):
+    source_language_code: str = Field(min_length=2, max_length=16)
+    target_language_code: str = Field(min_length=2, max_length=16)
+    source_term: str = Field(min_length=1, max_length=512)
+    target_term: str = Field(min_length=1, max_length=512)
+    notes: str | None = Field(default=None, max_length=1000)
+    is_active: bool = True
+
+
+class TerminologyOutput(TerminologyInput):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
 
 
 def _topic_values(payload: TopicInput) -> dict[str, Any]:
@@ -232,3 +267,133 @@ def _validate_categories(categories: list[CategoryInput]) -> None:
         raise HTTPException(422, "category slugs must be unique")
     if any(category.parent_slug and category.parent_slug not in slugs for category in categories):
         raise HTTPException(422, "parent category must be part of the same topic")
+
+
+@router.get("/languages", response_model=list[LanguageOutput])
+async def list_languages(request: Request) -> list[LanguageOutput]:
+    async with request.app.state.session_factory() as session:
+        rows = (
+            await session.execute(
+                select(LanguageConfig).order_by(LanguageConfig.priority.desc(), LanguageConfig.code)
+            )
+        ).scalars()
+        return [LanguageOutput.model_validate(row) for row in rows]
+
+
+@router.post("/languages", response_model=LanguageOutput, status_code=201)
+async def create_language(payload: LanguageInput, request: Request) -> LanguageOutput:
+    async with request.app.state.session_factory() as session:
+        language = LanguageConfig(**payload.model_dump())
+        session.add(language)
+        try:
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(409, "language code already exists") from exc
+        logger.info("ai_language_created", language_id=str(language.id), code=language.code)
+        return LanguageOutput.model_validate(language)
+
+
+@router.put("/languages/{code}", response_model=LanguageOutput)
+async def update_language(
+    code: str, payload: LanguageInput, request: Request
+) -> LanguageOutput:
+    if payload.code != code:
+        raise HTTPException(422, "language code cannot be changed")
+    async with request.app.state.session_factory() as session:
+        language = (
+            await session.execute(select(LanguageConfig).where(LanguageConfig.code == code))
+        ).scalar_one_or_none()
+        if language is None:
+            raise HTTPException(404, "language not found")
+        for name, value in payload.model_dump().items():
+            setattr(language, name, value)
+        await session.commit()
+        logger.info("ai_language_updated", language_id=str(language.id), code=language.code)
+        return LanguageOutput.model_validate(language)
+
+
+@router.get("/terminology", response_model=list[TerminologyOutput])
+async def list_terminology(
+    request: Request, source_language: str | None = None, target_language: str | None = None
+) -> list[TerminologyOutput]:
+    async with request.app.state.session_factory() as session:
+        statement = select(TerminologyEntry).order_by(TerminologyEntry.created_at)
+        if source_language:
+            statement = statement.where(
+                TerminologyEntry.source_language_code == source_language
+            )
+        if target_language:
+            statement = statement.where(
+                TerminologyEntry.target_language_code == target_language
+            )
+        rows = (await session.execute(statement)).scalars()
+        return [TerminologyOutput.model_validate(row) for row in rows]
+
+
+@router.post("/terminology", response_model=TerminologyOutput, status_code=201)
+async def create_terminology(
+    payload: TerminologyInput, request: Request
+) -> TerminologyOutput:
+    async with request.app.state.session_factory() as session:
+        await _ensure_languages_exist(
+            session, payload.source_language_code, payload.target_language_code
+        )
+        entry = TerminologyEntry(**payload.model_dump())
+        session.add(entry)
+        try:
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(409, "terminology entry already exists") from exc
+        logger.info(
+            "ai_terminology_created",
+            terminology_id=str(entry.id),
+            source_language=entry.source_language_code,
+            target_language=entry.target_language_code,
+        )
+        return TerminologyOutput.model_validate(entry)
+
+
+@router.put("/terminology/{entry_id}", response_model=TerminologyOutput)
+async def update_terminology(
+    entry_id: UUID, payload: TerminologyInput, request: Request
+) -> TerminologyOutput:
+    async with request.app.state.session_factory() as session:
+        entry = await session.get(TerminologyEntry, entry_id)
+        if entry is None:
+            raise HTTPException(404, "terminology entry not found")
+        await _ensure_languages_exist(
+            session, payload.source_language_code, payload.target_language_code
+        )
+        for name, value in payload.model_dump().items():
+            setattr(entry, name, value)
+        await session.commit()
+        logger.info("ai_terminology_updated", terminology_id=str(entry.id))
+        return TerminologyOutput.model_validate(entry)
+
+
+@router.delete("/terminology/{entry_id}", status_code=204)
+async def deactivate_terminology(entry_id: UUID, request: Request) -> Response:
+    async with request.app.state.session_factory() as session:
+        entry = await session.get(TerminologyEntry, entry_id)
+        if entry is None:
+            raise HTTPException(404, "terminology entry not found")
+        entry.is_active = False
+        await session.commit()
+        logger.info("ai_terminology_deactivated", terminology_id=str(entry.id))
+    return Response(status_code=204)
+
+
+async def _ensure_languages_exist(session: AsyncSession, source: str, target: str) -> None:
+    if source == target:
+        raise HTTPException(422, "source and target languages must differ")
+    codes = set(
+        (
+            await session.execute(
+                select(LanguageConfig.code).where(LanguageConfig.code.in_([source, target]))
+            )
+        ).scalars()
+    )
+    if codes != {source, target}:
+        raise HTTPException(422, "source and target languages must exist")

@@ -1,3 +1,4 @@
+from site_domain.models.article_translation import ArticleTranslationVersion
 from site_domain.models.article_version import ArticleSourceLink, ArticleVersion
 from site_domain.models.correction_notice import CorrectionNotice
 from site_domain.models.editorial_task import EditorialTask
@@ -11,6 +12,7 @@ from site_domain.models.site_article import SiteArticle
 __all__ = [
     "ArticleSourceLink",
     "ArticleVersion",
+    "ArticleTranslationVersion",
     "CorrectionNotice",
     "EditorialTask",
     "IncomingPackage",

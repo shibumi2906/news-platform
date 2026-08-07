@@ -29,6 +29,15 @@
           "title": "Canonical Url",
           "type": "string"
         },
+        "direction": {
+          "default": "ltr",
+          "enum": [
+            "ltr",
+            "rtl"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
         "excerpt": {
           "anyOf": [
             {

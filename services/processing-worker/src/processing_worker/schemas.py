@@ -45,3 +45,16 @@ class DraftOutput(BaseModel):
     body: str
     summary: str
     tags: list[str] = Field(default_factory=list)
+
+
+class LanguageDetectionOutput(BaseModel):
+    language_code: str = Field(pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
+    confidence: float = Field(ge=0, le=1)
+
+
+class TranslationOutput(BaseModel):
+    title: str
+    lead: str
+    body: str
+    summary: str
+    tags: list[str]

@@ -99,3 +99,58 @@ async def test_prompt_versions_activate_only_latest(client: httpx.AsyncClient) -
     listed = (await client.get("/api/v1/ai/prompts")).json()
     assert listed[0]["active_version"] == 2
     assert "system_prompt" not in listed[0]
+
+
+async def test_languages_and_terminology_are_admin_configurable(
+    client: httpx.AsyncClient,
+) -> None:
+    for payload in (
+        {
+            "code": "en",
+            "name": "English",
+            "direction": "ltr",
+            "translation_enabled": False,
+        },
+        {
+            "code": "he",
+            "name": "Hebrew",
+            "direction": "rtl",
+            "translation_enabled": True,
+        },
+    ):
+        assert (await client.post("/api/v1/ai/languages", json=payload)).status_code == 201
+    languages = (await client.get("/api/v1/ai/languages")).json()
+    assert {item["direction"] for item in languages} == {"ltr", "rtl"}
+
+    created = await client.post(
+        "/api/v1/ai/terminology",
+        json={
+            "source_language_code": "en",
+            "target_language_code": "he",
+            "source_term": "Acme",
+            "target_term": "אקמי",
+        },
+    )
+    assert created.status_code == 201
+    entry_id = created.json()["id"]
+    listed = (
+        await client.get("/api/v1/ai/terminology?source_language=en&target_language=he")
+    ).json()
+    assert listed[0]["target_term"] == "אקמי"
+    assert (await client.delete(f"/api/v1/ai/terminology/{entry_id}")).status_code == 204
+
+
+async def test_terminology_rejects_unknown_or_same_language(
+    client: httpx.AsyncClient,
+) -> None:
+    assert (
+        await client.post(
+            "/api/v1/ai/terminology",
+            json={
+                "source_language_code": "en",
+                "target_language_code": "en",
+                "source_term": "A",
+                "target_term": "B",
+            },
+        )
+    ).status_code == 422

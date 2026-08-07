@@ -10,13 +10,21 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from processing_worker.ai_gateway import AIProviderError, AIRequest, ProviderResponse
-from processing_worker.schemas import DraftOutput, ExtractionOutput, RelevanceOutput
+from processing_worker.schemas import (
+    DraftOutput,
+    ExtractionOutput,
+    LanguageDetectionOutput,
+    RelevanceOutput,
+    TranslationOutput,
+)
 
 _RETRYABLE_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
 _OUTPUT_MODELS: Mapping[str, type[BaseModel]] = {
     "relevance": RelevanceOutput,
     "extraction": ExtractionOutput,
     "draft": DraftOutput,
+    "language_detection": LanguageDetectionOutput,
+    "translation": TranslationOutput,
 }
 
 

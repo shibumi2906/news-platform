@@ -9,7 +9,7 @@ material — both are explicitly approved scope reductions, not omissions.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -26,6 +26,7 @@ class PackageContent(BaseModel):
     tags: list[str] = Field(default_factory=list)
     canonical_url: str
     language: str
+    direction: Literal["ltr", "rtl"] = "ltr"
 
 
 class PackageSourceRef(BaseModel):

@@ -8,6 +8,10 @@ configuration.
   subcategories, keywords, exclusions, regions, priority and relevance rules.
 - `/api/v1/ai/prompts` creates immutable prompt versions and exposes only
   non-sensitive prompt metadata in list responses.
+- `/api/v1/ai/languages` manages the seeded, configurable 16-language catalog,
+  target-translation flags, priority and RTL/LTR direction.
+- `/api/v1/ai/terminology` manages source/target glossary entries. Terminology
+  values are never included in structured logs.
 
 ## Run locally
 

@@ -12,13 +12,17 @@ A Celery beat task polls pending source-material outbox events. For each row:
 2. run relevance and store score/reason for every returned topic;
 3. extract facts/entities and cluster semantically equivalent materials;
 4. generate a versioned draft package from all event sources;
-5. store AI telemetry and source/fact provenance, then emit
+5. detect the source language, translate configured title, lead, body, summary
+   and tags through the same gateway, applying active terminology entries;
+6. store separate immutable translations, AI telemetry and source/fact
+   provenance, then emit
    `canonical_news_package.created` for delivery to Site ingestion.
 
 Source text, AI output and configuration secrets are not written to logs.
 Logs contain operation, provider/model, token counts, latency, cost and opaque
 identifiers only. AI packages enter Site as editorial drafts and are never
-automatically published.
+automatically published. Language detection and translation use the same
+provider-neutral retry/fallback policy as the other AI operations.
 
 ## Running
 

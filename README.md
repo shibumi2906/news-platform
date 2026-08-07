@@ -7,12 +7,16 @@ sequence.
 
 ## Current stage
 
-**AI Core vertical slice.** The repository includes source ingestion, Site
-editorial workflow and a provider-neutral AI path: database-managed topics
-and prompts → relevance → fact/entity extraction → event clustering →
-versioned article draft → signed Site ingestion. Drafts enter editorial
-review and are never auto-published. Multilingual, media generation and the
-public web remain out of scope.
+**AI Core and multilingual vertical slice.** The repository includes source
+ingestion, Site editorial workflow and a provider-neutral AI path:
+database-managed topics and prompts → relevance → fact/entity extraction →
+event clustering → versioned article draft → language detection and configured
+translations → signed Site ingestion. The seeded 16-language catalog, target
+languages and terminology are managed in PostgreSQL through Integrator Admin
+API. Original and translated versions remain separate and translations are
+linked to the exact source `ArticleVersion`. Drafts enter editorial review and
+are never auto-published. Media generation and the public web remain out of
+scope.
 
 Logging is centralized in `packages/python/common` (see its README): JSON
 lines on stdout only, level via `LOG_LEVEL`, correlation-id propagation via

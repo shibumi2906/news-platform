@@ -23,16 +23,19 @@ from integrator_domain.models import (
     DraftProvenance,
     Event,
     EventMaterial,
+    MaterialLanguageDetection,
     MaterialRelevance,
     OutboxEvent,
     Source,
     SourceMaterial,
+    TranslationVersion,
 )
 from processing_worker.ai_gateway import AIGateway, FakeAIProvider
 from processing_worker.processing import process_pending_events
 from site_api.config import Settings as SiteSettings
 from site_api.main import create_app as create_site_app
 from site_domain.models import (
+    ArticleTranslationVersion,
     ArticleVersion,
     EditorialTask,
     IncomingPackageVersion,
@@ -94,6 +97,39 @@ async def _run() -> None:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=integrator_app), base_url="http://integrator"
         ) as admin_client:
+            languages = await admin_client.get("/api/v1/ai/languages")
+            assert languages.status_code == 200
+            assert len(languages.json()) == 16
+            assert {language["code"] for language in languages.json()} == {
+                "am", "ar", "de", "en", "es", "fr", "ha", "id",
+                "it", "ja", "ko", "pt-BR", "sw", "th", "vi", "zh-CN",
+            }
+            for code, name, direction in (
+                ("en", "English", "ltr"),
+                ("ar", "Arabic", "rtl"),
+            ):
+                language = await admin_client.put(
+                    f"/api/v1/ai/languages/{code}",
+                    json={
+                        "code": code,
+                        "name": name,
+                        "direction": direction,
+                        "priority": 10,
+                        "is_active": True,
+                        "translation_enabled": True,
+                    },
+                )
+                assert language.status_code == 200
+            terminology = await admin_client.post(
+                "/api/v1/ai/terminology",
+                json={
+                    "source_language_code": "en",
+                    "target_language_code": "ar",
+                    "source_term": "Acme",
+                    "target_term": "Akme-ar",
+                },
+            )
+            assert terminology.status_code == 201
             topic = await admin_client.post(
                 "/api/v1/ai/topics",
                 json={
@@ -117,6 +153,8 @@ async def _run() -> None:
                 ("relevance", "RelevanceOutput"),
                 ("extraction", "ExtractionOutput"),
                 ("draft", "DraftOutput"),
+                ("language_detection", "LanguageDetectionOutput"),
+                ("translation", "TranslationOutput"),
             ):
                 prompt = await admin_client.post(
                     "/api/v1/ai/prompts",
@@ -191,6 +229,14 @@ async def _run() -> None:
                     "summary": "A European rocket launch by Acme was completed.",
                     "tags": ["space", "launch"],
                 },
+                "language_detection": {"language_code": "en", "confidence": 0.99},
+                "translation": {
+                    "title": "Akme-ar completes rocket launch",
+                    "lead": "Akme-ar completed a rocket launch.",
+                    "body": "Akme-ar launched a rocket from Europe.",
+                    "summary": "Akme-ar completed the launch.",
+                    "tags": ["space-ar", "launch-ar"],
+                },
             }
         )
         stats = await process_pending_events(
@@ -205,7 +251,17 @@ async def _run() -> None:
             assert await session.scalar(select(func.count()).select_from(MaterialRelevance)) == 1
             assert await session.scalar(select(func.count()).select_from(EventMaterial)) == 1
             assert await session.scalar(select(func.count()).select_from(DraftProvenance)) == 1
-            assert await session.scalar(select(func.count()).select_from(AIOperationRun)) == 3
+            assert await session.scalar(select(func.count()).select_from(AIOperationRun)) == 5
+            detection = (
+                await session.execute(select(MaterialLanguageDetection))
+            ).scalar_one()
+            translation_row = (await session.execute(select(TranslationVersion))).scalar_one()
+            assert detection.language_code == "en"
+            assert translation_row.target_language_code == "ar"
+            assert translation_row.direction == "rtl"
+            assert package.content["language"] == "en"
+            assert package.content["direction"] == "ltr"
+            assert package.language_versions["ar"]["direction"] == "rtl"
 
         site_sqlalchemy_url = site_url.replace("postgresql://", "postgresql+asyncpg://")
         site_engine = create_engine(site_sqlalchemy_url)
@@ -253,9 +309,17 @@ async def _run() -> None:
         async with site_factory() as session:
             article = (await session.execute(select(SiteArticle))).scalar_one()
             version = (await session.execute(select(ArticleVersion))).scalar_one()
+            site_translation = (
+                await session.execute(select(ArticleTranslationVersion))
+            ).scalar_one()
             assert article.status == "draft"
             assert version.content["content"]["lead"] == "Acme completed a rocket launch in Europe."
             assert version.content["facts"][0]["source_material_id"] == str(material.id)
+            assert site_translation.article_version_id == version.id
+            assert site_translation.source_language_code == "en"
+            assert site_translation.language_code == "ar"
+            assert site_translation.direction == "rtl"
+            assert site_translation.content["title"] == "Akme-ar completes rocket launch"
             assert await session.scalar(select(func.count()).select_from(EditorialTask)) == 1
     finally:
         if integrator_engine is not None:
@@ -270,5 +334,5 @@ async def _run() -> None:
         await admin.close()
 
 
-def test_postgres_ai_core_to_site_editorial_draft() -> None:
+def test_postgres_ai_core_to_multilingual_site_editorial_draft() -> None:
     asyncio.run(_run())

@@ -166,6 +166,13 @@ class FakeAIProvider:
             return _fake_extraction(request.input_data)
         if request.operation == "draft":
             return _fake_draft(request.input_data)
+        if request.operation == "language_detection":
+            return {
+                "language_code": request.input_data.get("declared_language") or "en",
+                "confidence": 0.99,
+            }
+        if request.operation == "translation":
+            return _fake_translation(request.input_data)
         raise AIProviderError("unsupported_operation", retryable=False)
 
 
@@ -263,4 +270,22 @@ def _fake_draft(data: dict[str, Any]) -> dict[str, Any]:
         "body": body,
         "summary": body[:500],
         "tags": data.get("tags", []),
+    }
+
+
+def _fake_translation(data: dict[str, Any]) -> dict[str, Any]:
+    content = dict(data["content"])
+    for entry in data.get("terminology", []):
+        source = str(entry["source_term"])
+        target = str(entry["target_term"])
+        for field in ("title", "lead", "body", "summary"):
+            content[field] = str(content[field]).replace(source, target)
+        content["tags"] = [str(tag).replace(source, target) for tag in content.get("tags", [])]
+    prefix = f"[{data['target_language']}] "
+    return {
+        "title": prefix + str(content["title"]),
+        "lead": prefix + str(content["lead"]),
+        "body": prefix + str(content["body"]),
+        "summary": prefix + str(content["summary"]),
+        "tags": list(content.get("tags", [])),
     }

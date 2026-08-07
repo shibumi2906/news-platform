@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 from common.hashing import sha256_hex
 from common.logging import get_logger
+from contracts.package import PackageContent
 from integrator_domain.models import (
     AIOperationRun,
     CanonicalNewsPackage,
@@ -22,6 +23,7 @@ from integrator_domain.models import (
     PromptVersion,
     SourceMaterial,
     Topic,
+    TranslationVersion,
 )
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -37,6 +39,7 @@ from processing_worker.ai_gateway import (
 from processing_worker.packaging import build_ai_package_envelope, envelope_to_row
 from processing_worker.prompt_registry import get_active_prompt
 from processing_worker.schemas import DraftOutput, ExtractionOutput, RelevanceOutput
+from processing_worker.translation import TranslationPipelineError, generate_translations
 
 SOURCE_MATERIAL_INGESTED = "source_material.ingested"
 CANONICAL_PACKAGE_CREATED = "canonical_news_package.created"
@@ -217,10 +220,19 @@ async def _process_one(
             extracted_facts=len(fact_ids),
         )
         return "processed"
-    except (AIGatewayError, LookupError, ValidationError, ValueError, _RecordedAIFailure) as exc:
+    except (
+        AIGatewayError,
+        LookupError,
+        ValidationError,
+        ValueError,
+        _RecordedAIFailure,
+        TranslationPipelineError,
+    ) as exc:
         if isinstance(exc, AIGatewayError):
             active_provider, active_model = exc.provider, exc.model
-        if active_prompt is not None and not isinstance(exc, _RecordedAIFailure):
+        if active_prompt is not None and not isinstance(
+            exc, (_RecordedAIFailure, TranslationPipelineError)
+        ):
             await _store_failed_run(
                 session_factory,
                 active_prompt,
@@ -484,6 +496,23 @@ async def _create_event_draft(
         )
         raise _RecordedAIFailure("draft operation failed") from exc
     await _store_run(session_factory, prompt, "draft", draft_input, response)
+    translation_bundle = await generate_translations(
+        session_factory, materials[0], draft, gateway
+    )
+    language_versions = {
+        item.target_language_code: PackageContent(
+            title=item.content.title,
+            lead=item.content.lead,
+            excerpt=item.content.summary,
+            body=item.content.body,
+            summary=item.content.summary,
+            tags=item.content.tags,
+            canonical_url=materials[0].canonical_url,
+            language=item.target_language_code,
+            direction="rtl" if item.direction == "rtl" else "ltr",
+        )
+        for item in translation_bundle.translations
+    }
     package_id = previous.package_id if previous else uuid4()
     package_version = previous.package_version + 1 if previous else 1
     fact_payload = [
@@ -517,11 +546,26 @@ async def _create_event_draft(
         facts=fact_payload,
         entities=entity_payload,
         taxonomy=list(dict.fromkeys(taxonomy)),
+        source_language=translation_bundle.source_language_code,
+        source_direction=translation_bundle.source_direction,
+        language_versions=language_versions,
     )
     async with session_factory() as session, session.begin():
         package = envelope_to_row(envelope)
         session.add(package)
         await session.flush()
+        for item in translation_bundle.translations:
+            session.add(
+                TranslationVersion(
+                    package_row_id=package.id,
+                    source_language_code=translation_bundle.source_language_code,
+                    target_language_code=item.target_language_code,
+                    direction=item.direction,
+                    content=item.content.model_dump(mode="json"),
+                    terminology_revision=item.terminology_revision,
+                    ai_operation_run_id=item.ai_operation_run_id,
+                )
+            )
         facts_by_material: dict[UUID, list[ExtractedFact]] = {}
         for fact in facts:
             facts_by_material.setdefault(fact.source_material_id, []).append(fact)

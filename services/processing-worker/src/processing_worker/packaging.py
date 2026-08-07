@@ -67,6 +67,9 @@ def build_ai_package_envelope(
     facts: list[dict[str, Any]],
     entities: list[dict[str, Any]],
     taxonomy: list[str],
+    source_language: str,
+    source_direction: str,
+    language_versions: dict[str, PackageContent],
 ) -> CanonicalNewsPackageEnvelope:
     if not materials:
         raise ValueError("an AI package requires at least one source material")
@@ -86,11 +89,13 @@ def build_ai_package_envelope(
             summary=draft.summary,
             tags=draft.tags,
             canonical_url=primary.canonical_url,
-            language=primary.language,
+            language=source_language,
+            direction="rtl" if source_direction == "rtl" else "ltr",
         ),
         facts=facts,
         entities=entities,
         taxonomy=taxonomy,
+        language_versions=language_versions,
         sources=[
             PackageSourceRef(
                 source_id=material.source_id,

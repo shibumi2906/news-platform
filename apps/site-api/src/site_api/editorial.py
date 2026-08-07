@@ -9,6 +9,7 @@ from common.logging import get_logger
 from common.time import utc_now
 from site_domain.models import (
     ArticleSourceLink,
+    ArticleTranslationVersion,
     ArticleVersion,
     CorrectionNotice,
     EditorialTask,
@@ -48,15 +49,29 @@ async def create_article_from_package(
     article = SiteArticle(status=DRAFT, latest_version_number=1)
     session.add(article)
     await session.flush()
-    session.add(
-        ArticleVersion(
-            article_id=article.id,
-            version_number=1,
-            content=package_version.payload,
-            created_by_actor_id=actor_id,
-            based_on_incoming_package_version_id=package_version.id,
-        )
+    version = ArticleVersion(
+        article_id=article.id,
+        version_number=1,
+        content=package_version.payload,
+        created_by_actor_id=actor_id,
+        based_on_incoming_package_version_id=package_version.id,
     )
+    session.add(version)
+    await session.flush()
+    original_content = package_version.payload.get("content", {})
+    source_language = str(original_content.get("language", "und"))
+    for language_code, translated_content in package_version.payload.get(
+        "language_versions", {}
+    ).items():
+        session.add(
+            ArticleTranslationVersion(
+                article_version_id=version.id,
+                source_language_code=source_language,
+                language_code=language_code,
+                direction=str(translated_content.get("direction", "ltr")),
+                content=translated_content,
+            )
+        )
     session.add(
         ArticleSourceLink(
             article_id=article.id,

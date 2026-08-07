@@ -10,6 +10,12 @@ from integrator_domain.models.ai import (
 )
 from integrator_domain.models.delivery import Delivery, DeliveryAttempt
 from integrator_domain.models.event import Event, EventMaterial
+from integrator_domain.models.multilingual import (
+    LanguageConfig,
+    MaterialLanguageDetection,
+    TerminologyEntry,
+    TranslationVersion,
+)
 from integrator_domain.models.outbox import OutboxEvent
 from integrator_domain.models.package import CanonicalNewsPackage
 from integrator_domain.models.site_connection import SiteConnection
@@ -26,6 +32,8 @@ __all__ = [
     "ExtractedEntity",
     "ExtractedFact",
     "MaterialRelevance",
+    "LanguageConfig",
+    "MaterialLanguageDetection",
     "OutboxEvent",
     "PromptTemplate",
     "PromptVersion",
@@ -35,4 +43,6 @@ __all__ = [
     "SourceRun",
     "SourceSnapshot",
     "Topic",
+    "TerminologyEntry",
+    "TranslationVersion",
 ]
