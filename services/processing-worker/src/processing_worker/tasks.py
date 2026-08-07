@@ -9,6 +9,7 @@ from uuid import UUID
 from common.db import create_engine, create_session_factory
 from common.logging import configure_logging, get_logger
 
+from processing_worker.ai_gateway import build_gateway
 from processing_worker.celery_app import app, settings
 from processing_worker.processing import process_pending_events
 
@@ -33,6 +34,10 @@ async def _process_pending_events() -> dict[str, int]:
             session_factory,
             instance_id=UUID(settings.instance_id),
             batch_size=settings.batch_size,
+            gateway=build_gateway(
+                settings.ai_providers,
+                max_attempts_per_provider=settings.ai_max_attempts_per_provider,
+            ),
         )
     finally:
         await engine.dispose()
@@ -40,11 +45,13 @@ async def _process_pending_events() -> dict[str, int]:
     logger.info(
         "processing_batch_completed",
         processed=stats.processed,
+        irrelevant=stats.irrelevant,
         skipped_duplicate=stats.skipped_duplicate,
         failed=stats.failed,
     )
     return {
         "processed": stats.processed,
+        "irrelevant": stats.irrelevant,
         "skipped_duplicate": stats.skipped_duplicate,
         "failed": stats.failed,
     }

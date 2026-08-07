@@ -8,12 +8,20 @@ empty.
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from common.ids import new_uuid
 from common.time import utc_now
-from contracts.package import CanonicalNewsPackageEnvelope, PackageContent, PackageSourceRef
+from contracts.package import (
+    CanonicalNewsPackageEnvelope,
+    PackageConfidence,
+    PackageContent,
+    PackageSourceRef,
+)
 from integrator_domain.models import CanonicalNewsPackage, Event, SourceMaterial
+
+from processing_worker.schemas import DraftOutput
 
 
 def build_package_envelope(
@@ -43,6 +51,60 @@ def build_package_envelope(
                 fetched_at=material.fetched_at,
             )
         ],
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def build_ai_package_envelope(
+    materials: list[SourceMaterial],
+    event: Event,
+    draft: DraftOutput,
+    *,
+    instance_id: UUID,
+    package_id: UUID,
+    package_version: int,
+    facts: list[dict[str, Any]],
+    entities: list[dict[str, Any]],
+    taxonomy: list[str],
+) -> CanonicalNewsPackageEnvelope:
+    if not materials:
+        raise ValueError("an AI package requires at least one source material")
+    now = utc_now()
+    primary = materials[0]
+    return CanonicalNewsPackageEnvelope(
+        package_id=package_id,
+        package_version=package_version,
+        instance_id=instance_id,
+        event_id=event.id,
+        event_stage=event.stage,
+        content=PackageContent(
+            title=draft.title,
+            lead=draft.lead,
+            excerpt=draft.summary,
+            body=draft.body,
+            summary=draft.summary,
+            tags=draft.tags,
+            canonical_url=primary.canonical_url,
+            language=primary.language,
+        ),
+        facts=facts,
+        entities=entities,
+        taxonomy=taxonomy,
+        sources=[
+            PackageSourceRef(
+                source_id=material.source_id,
+                source_material_id=material.id,
+                external_id=material.external_id,
+                url=material.url,
+                published_at=material.published_at,
+                fetched_at=material.fetched_at,
+            )
+            for material in materials
+        ],
+        confidence=PackageConfidence(
+            overall=min([0.9, *[float(fact["confidence"]) for fact in facts]])
+        ),
         created_at=now,
         updated_at=now,
     )

@@ -1,7 +1,7 @@
 [project]
 name = "processing-worker"
 version = "0.1.0"
-description = "Processing worker: builds canonical news packages from ingested source material (no AI step yet, docs/21 phase 3 not started)"
+description = "AI Core worker: relevance, extraction, clustering and canonical article drafts"
 requires-python = ">=3.12"
 dependencies = [
     "common",

@@ -10,8 +10,11 @@ from integrator_domain.models import (
     CanonicalNewsPackage,
     Event,
     OutboxEvent,
+    PromptTemplate,
+    PromptVersion,
     Source,
     SourceMaterial,
+    Topic,
 )
 from processing_worker.processing import (
     CANONICAL_PACKAGE_CREATED,
@@ -58,6 +61,33 @@ async def _seed_material_and_event(
         event = Event(source_material_id=material.id)
         session.add(event)
         await session.flush()
+
+        session.add(
+            Topic(
+                name="Headlines",
+                slug="headlines",
+                keywords=["headline"],
+                categories=[{"name": "General", "slug": "general", "keywords": []}],
+            )
+        )
+        for operation, schema in (
+            ("relevance", "RelevanceOutput"),
+            ("extraction", "ExtractionOutput"),
+            ("draft", "DraftOutput"),
+        ):
+            template = PromptTemplate(operation=operation)
+            session.add(template)
+            await session.flush()
+            session.add(
+                PromptVersion(
+                    template_id=template.id,
+                    version=1,
+                    system_prompt=f"{operation} system",
+                    user_prompt=f"{operation} user",
+                    output_schema=schema,
+                    is_active=True,
+                )
+            )
 
         material_id, event_id = material.id, event.id
     return material_id, event_id

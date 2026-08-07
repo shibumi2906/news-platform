@@ -1,7 +1,7 @@
 [project]
 name = "integrator-api"
 version = "0.1.0"
-description = "Integrator Admin API — Stage 1A: skeleton with health checks only"
+description = "Integrator Admin API for sources, topics and versioned AI prompts"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

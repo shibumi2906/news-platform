@@ -19,8 +19,11 @@ SCHEMA_VERSION = "1.0"
 
 class PackageContent(BaseModel):
     title: str
+    lead: str | None = None
     excerpt: str | None = None
     body: str | None = None
+    summary: str | None = None
+    tags: list[str] = Field(default_factory=list)
     canonical_url: str
     language: str
 

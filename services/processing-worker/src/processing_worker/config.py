@@ -14,6 +14,8 @@ class Settings(BaseAppSettings):
         default=15.0, alias="PROCESSING_WORKER_POLL_INTERVAL_SECONDS"
     )
     batch_size: int = Field(default=50, alias="PROCESSING_WORKER_BATCH_SIZE")
+    ai_providers: str = Field(default="fake", alias="AI_PROVIDERS")
+    ai_max_attempts_per_provider: int = Field(default=2, alias="AI_MAX_ATTEMPTS_PER_PROVIDER")
 
     @classmethod
     def from_env(cls) -> Settings:

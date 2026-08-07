@@ -14,6 +14,7 @@ from common.logging import (
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import RequestResponseEndpoint
 
+from integrator_api.api.ai_admin import router as ai_admin_router
 from integrator_api.api.health import router as health_router
 from integrator_api.api.sources import router as sources_router
 from integrator_api.config import Settings
@@ -61,4 +62,5 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(sources_router)
+    app.include_router(ai_admin_router)
     return app

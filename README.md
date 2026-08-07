@@ -7,12 +7,12 @@ sequence.
 
 ## Current stage
 
-**Stage 1B — RSS to Site Ingestion vertical.** The repository includes a
-working narrow path: RSS/Atom polling → normalized source material →
-canonical news package → signed delivery → idempotent Site ingestion.
-It includes domain tables, migrations, Celery workers, health checks and
-contract tests. Editorial workflow, AI, public web and later stages remain
-out of scope.
+**AI Core vertical slice.** The repository includes source ingestion, Site
+editorial workflow and a provider-neutral AI path: database-managed topics
+and prompts → relevance → fact/entity extraction → event clustering →
+versioned article draft → signed Site ingestion. Drafts enter editorial
+review and are never auto-published. Multilingual, media generation and the
+public web remain out of scope.
 
 Logging is centralized in `packages/python/common` (see its README): JSON
 lines on stdout only, level via `LOG_LEVEL`, correlation-id propagation via
