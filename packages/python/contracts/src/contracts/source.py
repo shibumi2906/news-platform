@@ -7,7 +7,7 @@ docs/05_SOURCE_CONNECTORS.md §2: a connector adapter's output is a list of
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -27,3 +27,11 @@ class SourceCandidate(BaseModel):
     updated_at: datetime | None = None
     fetched_at: datetime
     raw: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceAdapter(Protocol):
+    """Adapter seam for RSS, API, browser and search connectors."""
+
+    async def collect(
+        self, *, source_id: UUID, url: str, fetched_at: datetime
+    ) -> list[SourceCandidate]: ...

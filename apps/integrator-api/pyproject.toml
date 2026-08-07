@@ -7,10 +7,12 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "common",
+    "integrator-domain",
 ]
 
 [tool.uv.sources]
 common = { workspace = true }
+integrator-domain = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

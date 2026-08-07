@@ -3,7 +3,7 @@ from integrator_domain.models.event import Event
 from integrator_domain.models.outbox import OutboxEvent
 from integrator_domain.models.package import CanonicalNewsPackage
 from integrator_domain.models.site_connection import SiteConnection
-from integrator_domain.models.source import Source, SourceMaterial
+from integrator_domain.models.source import Source, SourceMaterial, SourceRun, SourceSnapshot
 
 __all__ = [
     "CanonicalNewsPackage",
@@ -14,4 +14,6 @@ __all__ = [
     "SiteConnection",
     "Source",
     "SourceMaterial",
+    "SourceRun",
+    "SourceSnapshot",
 ]

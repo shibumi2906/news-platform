@@ -15,6 +15,7 @@ WORKDIR /workspace
 
 COPY pyproject.toml uv.lock ./
 COPY packages/python/common packages/python/common
+COPY packages/python/integrator-domain packages/python/integrator-domain
 COPY apps/integrator-api apps/integrator-api
 
 RUN uv sync --package integrator-api --no-dev

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -20,9 +20,32 @@ class Source(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(255))
     feed_url: Mapped[str] = mapped_column(String(2048))
+    adapter_type: Mapped[str] = mapped_column(String(32), default="rss")
+    poll_interval_seconds: Mapped[int] = mapped_column(Integer, default=300)
+    status: Mapped[str] = mapped_column(String(32), default="active")
     is_active: Mapped[bool] = mapped_column(default=True)
     etag: Mapped[str | None] = mapped_column(String(1024), default=None)
     last_modified: Mapped[str | None] = mapped_column(String(1024), default=None)
+    last_error: Mapped[str | None] = mapped_column(String(1000), default=None)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SourceSnapshot(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "source_snapshot"
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source.id"))
+    status: Mapped[str] = mapped_column(String(32))
+    body: Mapped[str | None] = mapped_column(default=None)
+    content_hash: Mapped[str | None] = mapped_column(String(64), default=None)
+    etag: Mapped[str | None] = mapped_column(String(1024), default=None)
+    last_modified: Mapped[str | None] = mapped_column(String(1024), default=None)
+
+
+class SourceRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "source_run"
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source.id"))
+    status: Mapped[str] = mapped_column(String(32))
+    error: Mapped[str | None] = mapped_column(String(1000), default=None)
+    created_count: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class SourceMaterial(Base, UUIDPrimaryKeyMixin, TimestampMixin):

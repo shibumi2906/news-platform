@@ -9,15 +9,18 @@ from uuid import UUID
 
 import httpx
 from common.db import create_engine, create_session_factory
+from common.hashing import sha256_hex
 from common.logging import configure_logging, get_logger
 from common.time import utc_now
-from integrator_domain.models import Source
+from integrator_domain.models import Source, SourceSnapshot
 from sqlalchemy import select
 
 from source_worker.celery_app import app, settings
 from source_worker.fetcher import fetch_feed
+from source_worker.html import parse_html_document
 from source_worker.ingestion import ingest_candidates
 from source_worker.rss import parse_rss_feed
+from source_worker.state import record_run
 
 configure_logging(settings.log_level)
 logger = get_logger(__name__)
@@ -60,10 +63,12 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             )
 
         if result.status == "not_modified":
+            await record_run(session_factory, source_id, "not_modified", 0, None)
             logger.info("source_poll_not_modified", source_id=str(source_id))
             return {"created": 0, "duplicates": 0}
 
         if result.status != "ok":
+            await record_run(session_factory, source_id, "failed", 0, result.error)
             logger.warning(
                 "source_fetch_failed",
                 source_id=str(source_id),
@@ -72,17 +77,38 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             )
             return {"created": 0, "duplicates": 0}
 
+        body = result.body or b""
+        adapter_type, source_url = source.adapter_type, source.feed_url
         async with session_factory() as session, session.begin():
             source = await session.get(Source, source_id)
             if source is not None:
                 source.etag = result.etag
                 source.last_modified = result.last_modified
+                source.last_error = None
+                source.consecutive_failures = 0
+                session.add(
+                    SourceSnapshot(
+                        source_id=source_id,
+                        status="ok",
+                        body=body.decode("utf-8", errors="replace"),
+                        content_hash=sha256_hex(body.decode("utf-8", errors="replace")),
+                        etag=result.etag,
+                        last_modified=result.last_modified,
+                    )
+                )
 
         fetched_at = utc_now()
-        candidates = parse_rss_feed(result.body or b"", source_id=source_id, fetched_at=fetched_at)
+        candidates = (
+            parse_rss_feed(body, source_id=source_id, fetched_at=fetched_at)
+            if adapter_type == "rss"
+            else parse_html_document(
+                body, source_id=source_id, url=source_url, fetched_at=fetched_at
+            )
+        )
         candidates = candidates[: settings.max_candidates_per_poll]
 
         stats = await ingest_candidates(session_factory, candidates)
+        await record_run(session_factory, source_id, "succeeded", stats.created, None)
         logger.info(
             "source_poll_completed",
             source_id=str(source_id),
