@@ -1,6 +1,7 @@
 from site_domain.models.article_translation import ArticleTranslationVersion
 from site_domain.models.article_version import ArticleSourceLink, ArticleVersion
 from site_domain.models.correction_notice import CorrectionNotice
+from site_domain.models.dashboard import DashboardExportAttempt, DashboardOutbox
 from site_domain.models.distribution import (
     DistributionAttempt,
     DistributionChannel,
@@ -41,6 +42,8 @@ __all__ = [
     "AdminUser",
     "AuditLog",
     "CorrectionNotice",
+    "DashboardExportAttempt",
+    "DashboardOutbox",
     "EditorialTask",
     "IncomingPackage",
     "IncomingPackageVersion",

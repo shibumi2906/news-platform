@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import httpx
 from common.db import create_engine, create_session_factory
 from common.errors import DomainError, ErrorDetail, ErrorEnvelope
 from common.logging import (
@@ -32,6 +35,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from site_api.api.dashboard import router as dashboard_router
 from site_api.api.distribution import router as distribution_router
 from site_api.api.editorial import router as editorial_router
 from site_api.api.health import router as health_router
@@ -43,6 +47,7 @@ from site_api.api.security import router as security_router
 from site_api.api.system import build_job_metrics_collector
 from site_api.api.system import router as system_router
 from site_api.config import Settings
+from site_api.dashboard import export_due, reconcile
 from site_api.media_generation import FakeImageProvider, MediaGateway
 from site_api.security_service import build_session_validator, ensure_security_seed, write_audit
 from site_api.storage import S3ObjectStorage
@@ -97,7 +102,36 @@ def create_app() -> FastAPI:
             instance_type=settings.instance_type.value,
             app_version=settings.app_version,
         )
+
+        async def dashboard_loop() -> None:
+            while True:
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        await export_due(
+                            app.state.session_factory,
+                            dashboard_url=settings.dashboard_url,
+                            dashboard_key=(
+                                settings.dashboard_key.get_secret_value()
+                                if settings.dashboard_key
+                                else None
+                            ),
+                            site_instance_id=str(settings.instance_id),
+                            client=client,
+                            batch_size=100,
+                            retry_base_seconds=settings.dashboard_retry_base_seconds,
+                        )
+                    async with app.state.session_factory() as session:
+                        now = datetime.now(UTC)
+                        await reconcile(session, since=now - timedelta(days=1), until=now)
+                except Exception:
+                    logger.exception("dashboard_export_loop_failed")
+                await asyncio.sleep(60)
+
+        dashboard_task = asyncio.create_task(dashboard_loop())
         yield
+        dashboard_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await dashboard_task
         await app.state.object_storage.close()
         await app.state.db_engine.dispose()
 
@@ -142,8 +176,7 @@ def create_app() -> FastAPI:
                     path_segments = [item for item in request.url.path.split("/") if item]
                     resource_type = (
                         path_segments[3]
-                        if path_segments[:3] == ["api", "v1", "admin"]
-                        and len(path_segments) > 3
+                        if path_segments[:3] == ["api", "v1", "admin"] and len(path_segments) > 3
                         else path_segments[-1]
                         if path_segments
                         else "api"
@@ -223,6 +256,7 @@ def create_app() -> FastAPI:
     app.include_router(ingestion_router)
     app.include_router(editorial_router)
     app.include_router(distribution_router)
+    app.include_router(dashboard_router)
     app.include_router(media_router)
     app.include_router(security_router)
     app.include_router(security_admin_router)

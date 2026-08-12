@@ -31,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from site_api.dashboard import enqueue_metric
 from site_api.errors import (
     ConnectionNotFoundError,
     IdempotencyConflictError,
@@ -97,7 +98,9 @@ async def ingest_package(
     if envelope.schema_version.split(".", 1)[0] != "1":
         raise UnsupportedSchemaVersionError("unsupported canonical package schema version")
 
-    status = await _upsert_incoming_package(session, connection_id=connection_id, envelope=envelope)
+    status, package_version_id = await _upsert_incoming_package(
+        session, connection_id=connection_id, envelope=envelope
+    )
     receipt = IncomingPackageReceipt(
         package_id=envelope.package_id,
         package_version=envelope.package_version,
@@ -116,6 +119,16 @@ async def ingest_package(
             response_body=receipt.model_dump(mode="json"),
         )
     )
+    if status == "accepted":
+        if package_version_id is None:
+            raise RuntimeError("accepted package version is unavailable")
+        await enqueue_metric(
+            session,
+            event_type="package.received",
+            metric="packages_received",
+            occurred_at=receipt.received_at,
+            idempotency_key=f"package_received:{package_version_id}",
+        )
 
     try:
         await session.commit()
@@ -178,7 +191,7 @@ def _check_replay_window(timestamp: str, replay_window_seconds: float) -> None:
 
 async def _upsert_incoming_package(
     session: AsyncSession, *, connection_id: UUID, envelope: CanonicalNewsPackageEnvelope
-) -> Literal["accepted", "duplicate"]:
+) -> tuple[Literal["accepted", "duplicate"], UUID | None]:
     result = await session.execute(
         select(IncomingPackage).where(
             IncomingPackage.connection_id == connection_id,
@@ -203,20 +216,20 @@ async def _upsert_incoming_package(
             )
         )
         if version_result.scalar_one_or_none() is not None:
-            return "duplicate"
+            return "duplicate", None
         # Deliveries are not guaranteed to arrive in order; never regress.
         incoming_package.latest_version = max(
             incoming_package.latest_version, envelope.package_version
         )
 
-    session.add(
-        IncomingPackageVersion(
-            incoming_package_id=incoming_package.id,
-            package_version=envelope.package_version,
-            payload=envelope.model_dump(mode="json"),
-        )
+    package_version = IncomingPackageVersion(
+        incoming_package_id=incoming_package.id,
+        package_version=envelope.package_version,
+        payload=envelope.model_dump(mode="json"),
     )
-    return "accepted"
+    session.add(package_version)
+    await session.flush()
+    return "accepted", package_version.id
 
 
 def _summarize_validation_errors(exc: ValidationError) -> list[dict[str, object]]:

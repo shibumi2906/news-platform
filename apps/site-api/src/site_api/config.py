@@ -27,9 +27,16 @@ class Settings(BaseAppSettings):
         default=None, alias="ADMIN_BOOTSTRAP_PASSWORD"
     )
     auth_login_attempts_per_minute: int = Field(default=10, alias="AUTH_LOGIN_ATTEMPTS_PER_MINUTE")
+    dashboard_url: str | None = Field(default=None, alias="SUPABASE_DASHBOARD_URL")
+    dashboard_key: SecretStr | None = Field(default=None, alias="SUPABASE_DASHBOARD_KEY")
+    dashboard_retry_base_seconds: int = Field(default=30, alias="DASHBOARD_RETRY_BASE_SECONDS")
 
     @model_validator(mode="after")
     def validate_site_production_secrets(self) -> Settings:
+        if bool(self.dashboard_url) != bool(self.dashboard_key):
+            raise ValueError(
+                "SUPABASE_DASHBOARD_URL and SUPABASE_DASHBOARD_KEY must be set together"
+            )
         if self.app_env.lower() not in {"production", "staging"}:
             return self
         secrets = [self.s3_access_key.get_secret_value(), self.s3_secret_key.get_secret_value()]

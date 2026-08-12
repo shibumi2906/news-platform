@@ -1,6 +1,6 @@
 # Интеграция с дашбордом
 
-**Статус:** Draft 0.1  
+**Статус:** implemented baseline; расширенные аналитические агрегаты остаются Draft 0.1
 **Утверждённое правило:** данные отправляет только сайт.
 
 ## 1. Граница
@@ -13,7 +13,16 @@ Site health/latency; traffic aggregates; популярность материа
 
 ## 3. Доставка
 
-Операция сайта пишет `dashboard_outbox` в той же транзакции. Exporter отправляет срочные events и hourly/daily aggregates с schema version, site instance ID, period, metric, dimensions и value. Повторы с idempotency key; backoff; DLQ; reconciliation по диапазону времени.
+Операция сайта пишет `dashboard_outbox` в той же транзакции. Exporter отправляет срочные events и hourly/daily aggregates с schema version, site instance ID, period, metric, dimensions и value. Повторы с idempotency key, backoff и reconciliation по диапазону времени.
+
+Текущая реализация экспортирует `package.received`/`packages_received` и
+`article.published`/`articles_published`. Она использует только
+`SUPABASE_DASHBOARD_URL` и `SUPABASE_DASHBOARD_KEY` в Site API. Временные
+HTTP/transport-ошибки переводят запись в `retry_wait`; `Idempotency-Key`
+сохраняется между попытками. Reconciliation последних 24 часов восстанавливает
+отсутствующие outbox-записи из Site PostgreSQL без повторной отправки уже
+экспортированных фактов. Экспорты без URL/key выключены и не создают сетевых
+запросов.
 
 ## 4. Приватность и отказоустойчивость
 
@@ -22,4 +31,3 @@ Site health/latency; traffic aggregates; популярность материа
 ## 5. Приёмка
 
 Network/config test подтверждает отсутствие Supabase у интегратора; duplicate export не удваивает метрику; outage/recovery и reconciliation проверены; dashboard schema отделена от основной БД сайта.
-

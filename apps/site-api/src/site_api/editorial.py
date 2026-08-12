@@ -32,6 +32,7 @@ from site_domain.workflow import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from site_api.dashboard import enqueue_metric
 from site_api.errors import ConflictError, NotFoundError, ValidationDomainError
 
 logger = get_logger(__name__)
@@ -221,6 +222,13 @@ async def publish(
         utc_now(),
     )
     article.status = PUBLISHED
+    await enqueue_metric(
+        session,
+        event_type="article.published",
+        metric="articles_published",
+        occurred_at=publication.published_at,
+        idempotency_key=f"article_published:{publication.id}:{version.id}",
+    )
     await session.commit()
     logger.info("article_published", article_id=str(article.id), version=version.version_number)
     return article
