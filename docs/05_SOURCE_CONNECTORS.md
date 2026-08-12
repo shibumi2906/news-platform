@@ -1,6 +1,6 @@
 # Коннекторы источников
 
-**Статус:** Draft 0.1
+**Статус:** RSS/Atom, HTML и базовый JSON HTTP API implemented; остальные части Draft 0.1
 
 ## 1. Назначение
 
@@ -18,6 +18,8 @@
 
 - RSS/API/YouTube: стабильный external ID и incremental cursor.
 - HTML: selector config или одобренный parser adapter.
+- API: method, query/body, pagination и JSON-path mapping в source config;
+  секрет передаётся только по ссылке на environment variable.
 - Browser: изолированный context, запрет произвольных downloads и внутренних сетей.
 - Search: обнаруживает ссылки и утверждения, но результат поиска сам по себе не считается первоисточником.
 
@@ -28,4 +30,3 @@
 ## 6. Тесты и приёмка
 
 Fixtures без сети для каждого адаптера; cursor/idempotency; timezone; malformed data; 429/5xx; auth rotation; пустая страница; изменение DOM. Новый источник активируется только после preview и подтверждения администратора.
-

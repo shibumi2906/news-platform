@@ -1,6 +1,7 @@
 # source-worker
 
-RSS/Atom and configuration-driven HTML source connectors (docs/05_SOURCE_CONNECTORS.md).
+RSS/Atom, configuration-driven HTML, and JSON HTTP API source connectors
+(docs/05_SOURCE_CONNECTORS.md).
 
 ## Pipeline
 
@@ -28,6 +29,14 @@ HTML sources use `config` with `item_selector`, `url_selector`,
 `language` refine extraction. Selectors support tag, `.class`, `#id`, `[attr]`,
 `[attr=value]`, descendants and comma groups. The connector does not use a
 browser and never hardcodes a site-specific parser.
+
+API sources use `config.items_path` and `config.mapping` (`id`, `title`, and
+`url` are required; `published_at`, `author`, `content`, `summary`, and
+`language` are optional). `method`, `query_params`, `headers`, `json_body`, and
+page/cursor-style `pagination` are configured per source. Set `auth_env` to an
+environment-variable name and optionally `auth_header`/`auth_prefix`; the secret
+value is never stored in PostgreSQL. OAuth and provider-specific adapters are
+not part of this connector.
 
 ## Scope reductions
 
