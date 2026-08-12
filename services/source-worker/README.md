@@ -1,18 +1,15 @@
 # source-worker
 
-RSS/Atom source connector (docs/05_SOURCE_CONNECTORS.md). Implements the
-`discover -> fetch -> normalize -> checkpoint` pipeline for the RSS/Atom
-adapter type only — other adapter types (HTML, browser, search) are out of
-scope for Stage 1B.
+RSS/Atom and configuration-driven HTML source connectors (docs/05_SOURCE_CONNECTORS.md).
 
 ## Pipeline
 
 1. **discover** — `poll_all_active_sources` selects every active `Source`
    row and enqueues one `poll_source` task per source.
-2. **fetch** — `fetcher.fetch_feed` performs a conditional HTTP GET
+2. **fetch** — `fetcher.fetch_feed` performs HTTP GET with redirects,
    (`If-None-Match`/`If-Modified-Since`), with a bounded retry that honors
    `Retry-After` on `429`/`5xx` (docs/05 §3).
-3. **normalize** — `rss.parse_rss_feed` turns feed entries into
+3. **normalize** — RSS turns feed entries into
    `contracts.source.SourceCandidate` values. Malformed entries (missing
    link) are skipped rather than failing the whole poll.
 4. **checkpoint** — `ingestion.ingest_candidates` persists each candidate as
@@ -25,9 +22,16 @@ The RSS adapter itself never writes an `Event` or article
 (docs/05_SOURCE_CONNECTORS.md §2) — that happens one layer up, in
 `ingestion.py`.
 
-## Scope reductions (Stage 1B, explicitly approved)
+HTML sources use `config` with `item_selector`, `url_selector`,
+`title_selector`, and `content_selector`; optional `canonical_selector`,
+`published_at_selector`, `published_at_attribute`, `author_selector`, and
+`language` refine extraction. Selectors support tag, `.class`, `#id`, `[attr]`,
+`[attr=value]`, descendants and comma groups. The connector does not use a
+browser and never hardcodes a site-specific parser.
 
-- RSS/Atom only; no HTML/browser/search adapters yet.
+## Scope reductions
+
+- No API/browser/search adapters; Playwright/Selenium are deliberately not a fallback.
 - Every `SourceMaterial` gets its own 1:1 `Event` stub; multi-source event
   clustering is out of scope until AI processing is introduced.
 

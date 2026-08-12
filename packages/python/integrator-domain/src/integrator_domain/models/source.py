@@ -21,6 +21,7 @@ class Source(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255))
     feed_url: Mapped[str] = mapped_column(String(2048))
     adapter_type: Mapped[str] = mapped_column(String(32), default="rss")
+    config: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
     poll_interval_seconds: Mapped[int] = mapped_column(Integer, default=300)
     status: Mapped[str] = mapped_column(String(32), default="active")
     is_active: Mapped[bool] = mapped_column(default=True)

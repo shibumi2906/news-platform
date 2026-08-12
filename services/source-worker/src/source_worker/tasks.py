@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from source_worker.celery_app import app, settings
 from source_worker.fetcher import fetch_feed
-from source_worker.html import parse_html_document
+from source_worker.html import collect_html_source
 from source_worker.ingestion import ingest_candidates
 from source_worker.rss import parse_rss_feed
 from source_worker.state import record_run
@@ -52,22 +52,39 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             logger.warning("source_poll_skipped", source_id=str(source_id))
             return {"created": 0, "duplicates": 0}
 
-        async with httpx.AsyncClient() as client:
-            result = await fetch_feed(
-                client,
-                source.feed_url,
-                user_agent=settings.http_user_agent,
-                timeout_seconds=settings.http_timeout_seconds,
-                etag=source.etag,
-                last_modified=source.last_modified,
-            )
+        if source.adapter_type == "html":
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                candidates, etag, last_modified, error = await collect_html_source(
+                    client,
+                    source_id=source_id,
+                    list_url=source.feed_url,
+                    config=source.config,
+                    fetched_at=utc_now(),
+                    user_agent=settings.http_user_agent,
+                    timeout_seconds=settings.http_timeout_seconds,
+                )
+            if error:
+                await record_run(session_factory, source_id, "failed", 0, error)
+                return {"created": 0, "duplicates": 0}
+            body = b""
+            result_etag, result_last_modified = etag, last_modified
+        else:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                result = await fetch_feed(
+                    client,
+                    source.feed_url,
+                    user_agent=settings.http_user_agent,
+                    timeout_seconds=settings.http_timeout_seconds,
+                    etag=source.etag,
+                    last_modified=source.last_modified,
+                )
 
-        if result.status == "not_modified":
+        if source.adapter_type != "html" and result.status == "not_modified":
             await record_run(session_factory, source_id, "not_modified", 0, None)
             logger.info("source_poll_not_modified", source_id=str(source_id))
             return {"created": 0, "duplicates": 0}
 
-        if result.status != "ok":
+        if source.adapter_type != "html" and result.status != "ok":
             await record_run(session_factory, source_id, "failed", 0, result.error)
             logger.warning(
                 "source_fetch_failed",
@@ -77,13 +94,15 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             )
             return {"created": 0, "duplicates": 0}
 
-        body = result.body or b""
-        adapter_type, source_url = source.adapter_type, source.feed_url
+        if source.adapter_type != "html":
+            body = result.body or b""
+            result_etag, result_last_modified = result.etag, result.last_modified
+        adapter_type = source.adapter_type
         async with session_factory() as session, session.begin():
             source = await session.get(Source, source_id)
             if source is not None:
-                source.etag = result.etag
-                source.last_modified = result.last_modified
+                source.etag = result_etag
+                source.last_modified = result_last_modified
                 source.last_error = None
                 source.consecutive_failures = 0
                 session.add(
@@ -92,19 +111,13 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                         status="ok",
                         body=body.decode("utf-8", errors="replace"),
                         content_hash=sha256_hex(body.decode("utf-8", errors="replace")),
-                        etag=result.etag,
-                        last_modified=result.last_modified,
+                        etag=result_etag,
+                        last_modified=result_last_modified,
                     )
                 )
 
-        fetched_at = utc_now()
-        candidates = (
-            parse_rss_feed(body, source_id=source_id, fetched_at=fetched_at)
-            if adapter_type == "rss"
-            else parse_html_document(
-                body, source_id=source_id, url=source_url, fetched_at=fetched_at
-            )
-        )
+        if adapter_type == "rss":
+            candidates = parse_rss_feed(body, source_id=source_id, fetched_at=utc_now())
         candidates = candidates[: settings.max_candidates_per_poll]
 
         stats = await ingest_candidates(session_factory, candidates)

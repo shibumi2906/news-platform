@@ -79,6 +79,12 @@ async def _run() -> None:
                         "feed_url": "https://example.test/news",
                         "adapter_type": "html",
                         "poll_interval_seconds": 120,
+                        "config": {
+                            "item_selector": "article",
+                            "url_selector": "a",
+                            "title_selector": "a",
+                            "content_selector": "main",
+                        },
                     },
                 )
                 assert created.status_code == 201

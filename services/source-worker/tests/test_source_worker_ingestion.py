@@ -109,6 +109,28 @@ async def test_ingest_candidates_dedups_by_canonical_url_hash(
     assert stats.duplicates == 1
 
 
+async def test_html_article_candidates_use_existing_duplicate_protection(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    source_id = await _insert_source(session_factory)
+    first = _make_candidate(
+        source_id,
+        external_id="html-canonical-one",
+        canonical_url="https://news.example.com/articles/one",
+    )
+    same_article = _make_candidate(
+        source_id,
+        external_id="html-canonical-one-retry",
+        canonical_url="https://news.example.com/articles/one",
+    )
+
+    await ingest_candidates(session_factory, [first])
+    stats = await ingest_candidates(session_factory, [same_article])
+
+    assert stats.created == 0
+    assert stats.duplicates == 1
+
+
 async def test_ingest_candidates_skips_all_when_source_material_row_is_new(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
