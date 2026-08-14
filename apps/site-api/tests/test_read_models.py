@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -12,6 +13,7 @@ from site_domain.models import (
     ArticleVersion,
     Publication,
     SiteArticle,
+    SiteEvent,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -30,6 +32,14 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
     app.state.session_factory = factory
     now = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
     async with factory() as session, session.begin():
+        event = SiteEvent(
+            source_event_id=uuid4(),
+            title="Launch event",
+            summary="Event summary",
+            taxonomy=["launches"],
+        )
+        session.add(event)
+        await session.flush()
         article = SiteArticle(status="published", latest_version_number=1)
         session.add(article)
         await session.flush()
@@ -52,6 +62,7 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
                 "entities": [],
                 "sources": [],
             },
+            event_id=event.id,
         )
         session.add(version)
         await session.flush()
@@ -96,6 +107,7 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
                 },
                 "taxonomy": ["sports"],
             },
+            event_id=event.id,
         )
         session.add(version_two)
         await session.flush()
@@ -201,3 +213,20 @@ async def test_public_read_model_search_filters_pagination_and_sorting(
     assert paged.json()["items"][0]["title"] == "Launch story"
     date_filtered = await client.get("/api/v1/public/articles?from_date=2026-08-08T00:00:00Z")
     assert [item["title"] for item in date_filtered.json()["items"]] == ["Sports report"]
+
+
+async def test_public_events_only_include_published_timeline_articles(
+    client: httpx.AsyncClient,
+) -> None:
+    events = await client.get("/api/v1/public/events")
+    assert events.status_code == 200
+    assert events.json()[0]["title"] == "Launch event"
+    assert events.json()[0]["article_count"] == 2
+    event_id = events.json()[0]["id"]
+    detail = await client.get(f"/api/v1/public/events/{event_id}?language=en")
+    assert detail.status_code == 200
+    assert [article["title"] for article in detail.json()["articles"]] == [
+        "Launch story",
+        "Sports report",
+    ]
+    assert (await client.get("/api/v1/public/events/not-a-uuid")).status_code == 422

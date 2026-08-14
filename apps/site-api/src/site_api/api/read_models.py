@@ -18,6 +18,7 @@ from site_domain.models import (
     Publication,
     ReviewDecision,
     SiteArticle,
+    SiteEvent,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,6 +65,19 @@ class PublicArticlePage(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class PublicEvent(BaseModel):
+    id: UUID
+    title: str
+    summary: str | None = None
+    taxonomy: list[str] = Field(default_factory=list)
+    latest_published_at: datetime
+    article_count: int
+
+
+class PublicEventDetail(PublicEvent):
+    articles: list[PublicArticle]
 
 
 class IncomingPackageSummary(BaseModel):
@@ -174,6 +188,34 @@ async def get_public_article(
             raise HTTPException(404, "published article not found")
         article, publication, version = row
         return await _public_article(session, article, publication, version, language)
+
+
+@public_router.get("/events", response_model=list[PublicEvent])
+async def list_public_events(request: Request, language: str | None = None) -> list[PublicEvent]:
+    async with request.app.state.session_factory() as session:
+        grouped = await _published_events(session, language)
+    return sorted(
+        (_event_summary(event, articles) for event, articles in grouped.values()),
+        key=lambda event: event.latest_published_at,
+        reverse=True,
+    )
+
+
+@public_router.get("/events/{event_id}", response_model=PublicEventDetail)
+async def get_public_event(
+    event_id: UUID, request: Request, language: str | None = None
+) -> PublicEventDetail:
+    async with request.app.state.session_factory() as session:
+        grouped = await _published_events(session, language)
+    group = grouped.get(event_id)
+    if group is None:
+        raise HTTPException(404, "published event not found")
+    event, articles = group
+    summary = _event_summary(event, articles)
+    return PublicEventDetail(
+        **summary.model_dump(),
+        articles=sorted(articles, key=lambda article: article.published_at),
+    )
 
 
 @public_router.get("/categories", response_model=list[PublicCategory])
@@ -438,6 +480,43 @@ async def _published_articles(
         await _public_article(session, article, publication, version, requested_language)
         for article, publication, version in rows
     ]
+
+
+async def _published_events(
+    session: AsyncSession, language: str | None
+) -> dict[UUID, tuple[SiteEvent, list[PublicArticle]]]:
+    articles = await _published_articles(session, language)
+    if language is not None:
+        articles = [article for article in articles if article.language == language]
+    version_ids = [article.article_version_id for article in articles]
+    if not version_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(ArticleVersion.id, SiteEvent)
+            .join(SiteEvent, SiteEvent.id == ArticleVersion.event_id)
+            .where(ArticleVersion.id.in_(version_ids))
+        )
+    ).all()
+    events_by_version = {version_id: event for version_id, event in rows}
+    grouped: dict[UUID, tuple[SiteEvent, list[PublicArticle]]] = {}
+    for article in articles:
+        event = events_by_version.get(article.article_version_id)
+        if event is None:
+            continue
+        grouped.setdefault(event.id, (event, []))[1].append(article)
+    return grouped
+
+
+def _event_summary(event: SiteEvent, articles: list[PublicArticle]) -> PublicEvent:
+    return PublicEvent(
+        id=event.id,
+        title=event.title,
+        summary=event.summary,
+        taxonomy=list(event.taxonomy),
+        latest_published_at=max(article.published_at for article in articles),
+        article_count=len(articles),
+    )
 
 
 def _admin_summary(article: SiteArticle) -> AdminArticleSummary:

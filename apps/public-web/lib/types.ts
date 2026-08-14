@@ -26,6 +26,19 @@ export interface PublicArticlePage {
   total: number;
 }
 
+export interface PublicEvent {
+  id: string;
+  title: string;
+  summary: string | null;
+  taxonomy: string[];
+  latest_published_at: string;
+  article_count: number;
+}
+
+export interface PublicEventDetail extends PublicEvent {
+  articles: PublicArticle[];
+}
+
 export interface PublicCategory {
   slug: string;
   article_count: number;

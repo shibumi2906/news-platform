@@ -4,6 +4,8 @@ import type {
   PublicArticle,
   PublicArticlePage,
   PublicCategory,
+  PublicEvent,
+  PublicEventDetail,
   PublicLanguage,
 } from "@/lib/types";
 import { cookies } from "next/headers";
@@ -74,6 +76,23 @@ export function getPublicCategories(): Promise<PublicCategory[]> {
 
 export function getPublicLanguages(): Promise<PublicLanguage[]> {
   return requestJson(siteUrl, "/api/v1/public/languages");
+}
+
+export function getPublicEvents(language?: string): Promise<PublicEvent[]> {
+  return requestJson(siteUrl, publicEventsPath(language));
+}
+
+export function getPublicEvent(id: string, language?: string): Promise<PublicEventDetail> {
+  return requestJson(siteUrl, publicEventPath(id, language));
+}
+
+export function publicEventsPath(language?: string): string {
+  return language ? `/api/v1/public/events?language=${encodeURIComponent(language)}` : "/api/v1/public/events";
+}
+
+export function publicEventPath(id: string, language?: string): string {
+  const suffix = language ? `?language=${encodeURIComponent(language)}` : "";
+  return `/api/v1/public/events/${encodeURIComponent(id)}${suffix}`;
 }
 
 export function getAdminSite<T>(path: string): Promise<T> {

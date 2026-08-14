@@ -8,6 +8,7 @@ from site_domain.models.distribution import (
     DistributionJob,
 )
 from site_domain.models.editorial_task import EditorialTask
+from site_domain.models.event import SiteEvent
 from site_domain.models.incoming_package import IncomingPackage, IncomingPackageVersion
 from site_domain.models.ingestion_attempt import IngestionAttempt
 from site_domain.models.integrator_connection import IntegratorConnection
@@ -64,6 +65,7 @@ __all__ = [
     "Role",
     "SecretRevision",
     "SiteArticle",
+    "SiteEvent",
     "UnifiedJob",
     "UnifiedJobAttempt",
     "VideoProject",

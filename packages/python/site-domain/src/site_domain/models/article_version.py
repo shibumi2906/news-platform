@@ -35,6 +35,7 @@ class ArticleVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     based_on_incoming_package_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("incoming_package_version.id"), default=None
     )
+    event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("site_event.id"), default=None)
 
 
 class ArticleSourceLink(Base, UUIDPrimaryKeyMixin, TimestampMixin):

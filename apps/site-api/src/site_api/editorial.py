@@ -18,6 +18,7 @@ from site_domain.models import (
     Publication,
     ReviewDecision,
     SiteArticle,
+    SiteEvent,
 )
 from site_domain.workflow import (
     APPROVED,
@@ -50,12 +51,14 @@ async def create_article_from_package(
     article = SiteArticle(status=DRAFT, latest_version_number=1)
     session.add(article)
     await session.flush()
+    event = await _event_for_package(session, package_version.payload)
     version = ArticleVersion(
         article_id=article.id,
         version_number=1,
         content=package_version.payload,
         created_by_actor_id=actor_id,
         based_on_incoming_package_version_id=package_version.id,
+        event_id=event.id,
     )
     session.add(version)
     await session.flush()
@@ -107,11 +110,20 @@ async def create_version(
         article.status = "corrected"
     article.latest_version_number += 1
     article.lock_version += 1
+    previous_event_id = (
+        await session.execute(
+            select(ArticleVersion.event_id)
+            .where(ArticleVersion.article_id == article.id)
+            .order_by(ArticleVersion.version_number.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
     version = ArticleVersion(
         article_id=article.id,
         version_number=article.latest_version_number,
         content=content,
         created_by_actor_id=actor_id,
+        event_id=previous_event_id,
     )
     session.add(version)
     await session.flush()
@@ -130,6 +142,36 @@ async def create_version(
         "article_version_created", article_id=str(article.id), version=version.version_number
     )
     return article
+
+
+async def _event_for_package(session: AsyncSession, payload: dict[str, object]) -> SiteEvent:
+    raw_event_id = payload.get("event_id")
+    try:
+        event_id = UUID(str(raw_event_id))
+    except (TypeError, ValueError) as exc:
+        raise ValidationDomainError("incoming package has invalid event_id") from exc
+    event = (
+        await session.execute(select(SiteEvent).where(SiteEvent.source_event_id == event_id))
+    ).scalar_one_or_none()
+    if event is not None:
+        return event
+    content = payload.get("content")
+    content = content if isinstance(content, dict) else {}
+    title = content.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise ValidationDomainError("incoming package has no event title")
+    taxonomy = payload.get("taxonomy")
+    event = SiteEvent(
+        source_event_id=event_id,
+        title=title.strip(),
+        summary=content.get("summary") if isinstance(content.get("summary"), str) else None,
+        taxonomy=[value for value in taxonomy if isinstance(value, str)]
+        if isinstance(taxonomy, list)
+        else [],
+    )
+    session.add(event)
+    await session.flush()
+    return event
 
 
 async def submit_for_review(
