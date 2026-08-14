@@ -16,6 +16,7 @@ from integrator_domain.models import Source, SourceSnapshot
 from sqlalchemy import select
 
 from source_worker.api import collect_api_source
+from source_worker.browser import collect_browser_source
 from source_worker.celery_app import app, settings
 from source_worker.fetcher import fetch_feed
 from source_worker.html import collect_html_source
@@ -85,6 +86,27 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                 return {"created": 0, "duplicates": 0}
             body = b""
             result_etag, result_last_modified = None, None
+        elif source.adapter_type == "browser":
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as playwright:
+                browser = await playwright.chromium.launch()
+                try:
+                    candidates, error = await collect_browser_source(
+                        browser,
+                        source_id=source_id,
+                        start_url=source.feed_url,
+                        config=source.config,
+                        fetched_at=utc_now(),
+                        user_agent=settings.http_user_agent,
+                    )
+                finally:
+                    await browser.close()
+            if error:
+                await record_run(session_factory, source_id, "failed", 0, error)
+                return {"created": 0, "duplicates": 0}
+            body = b""
+            result_etag, result_last_modified = None, None
         else:
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 result = await fetch_feed(
@@ -96,12 +118,15 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                     last_modified=source.last_modified,
                 )
 
-        if source.adapter_type not in {"html", "api"} and result.status == "not_modified":
+        if (
+            source.adapter_type not in {"html", "api", "browser"}
+            and result.status == "not_modified"
+        ):
             await record_run(session_factory, source_id, "not_modified", 0, None)
             logger.info("source_poll_not_modified", source_id=str(source_id))
             return {"created": 0, "duplicates": 0}
 
-        if source.adapter_type not in {"html", "api"} and result.status != "ok":
+        if source.adapter_type not in {"html", "api", "browser"} and result.status != "ok":
             await record_run(session_factory, source_id, "failed", 0, result.error)
             logger.warning(
                 "source_fetch_failed",
@@ -111,7 +136,7 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             )
             return {"created": 0, "duplicates": 0}
 
-        if source.adapter_type not in {"html", "api"}:
+        if source.adapter_type not in {"html", "api", "browser"}:
             body = result.body or b""
             result_etag, result_last_modified = result.etag, result.last_modified
         adapter_type = source.adapter_type

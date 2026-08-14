@@ -33,7 +33,7 @@ class SourceOutput(SourceInput):
 
 @router.post("", response_model=SourceOutput, status_code=201)
 async def create(payload: SourceInput, request: Request) -> SourceOutput:
-    if payload.adapter_type not in {"rss", "html", "api"}:
+    if payload.adapter_type not in {"rss", "html", "api", "browser"}:
         raise HTTPException(422, "adapter type is not implemented")
     if payload.feed_url.username is not None or payload.feed_url.password is not None:
         raise HTTPException(422, "source URL credentials must use external secret storage")
@@ -45,6 +45,11 @@ async def create(payload: SourceInput, request: Request) -> SourceOutput:
     if payload.adapter_type == "api":
         try:
             validate_api_source_config(payload.config)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    if payload.adapter_type == "browser":
+        try:
+            validate_html_source_config(payload.config)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
     async with request.app.state.session_factory() as session:

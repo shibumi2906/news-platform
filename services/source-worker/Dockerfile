@@ -1,5 +1,5 @@
 # Build context is the repository root (uv workspace requires sibling packages).
-FROM python:3.12-slim
+FROM mcr.microsoft.com/playwright/python:v1.50.0-noble
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl procps \
     && rm -rf /var/lib/apt/lists/*
@@ -20,8 +20,10 @@ COPY packages/python/integrator-domain packages/python/integrator-domain
 COPY services/source-worker services/source-worker
 
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --package source-worker --no-dev
+# The official image supplies Chromium and all required browser libraries.
+# Keep the Python package version pinned to the matching image release.
 
-RUN useradd --create-home --uid 1000 appuser \
+RUN useradd --create-home appuser \
     && chown -R appuser:appuser /workspace
 USER appuser
 
