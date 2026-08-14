@@ -33,7 +33,15 @@ class SourceOutput(SourceInput):
 
 @router.post("", response_model=SourceOutput, status_code=201)
 async def create(payload: SourceInput, request: Request) -> SourceOutput:
-    if payload.adapter_type not in {"rss", "html", "api", "browser", "youtube"}:
+    if payload.adapter_type not in {
+        "rss",
+        "html",
+        "api",
+        "browser",
+        "youtube",
+        "google_search",
+        "gemini_search",
+    }:
         raise HTTPException(422, "adapter type is not implemented")
     if payload.feed_url.username is not None or payload.feed_url.password is not None:
         raise HTTPException(422, "source URL credentials must use external secret storage")
@@ -55,6 +63,16 @@ async def create(payload: SourceInput, request: Request) -> SourceOutput:
     if payload.adapter_type == "youtube":
         try:
             validate_youtube_source_config(payload.config)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    if payload.adapter_type == "google_search":
+        try:
+            validate_google_search_source_config(payload.config)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    if payload.adapter_type == "gemini_search":
+        try:
+            validate_gemini_search_source_config(payload.config)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
     async with request.app.state.session_factory() as session:
@@ -108,6 +126,25 @@ def validate_youtube_source_config(config: dict[str, Any]) -> None:
         raise ValueError("YouTube source config requires channel_id, channel_url, or playlist_id")
     if any(key.lower() in {"api_key", "key", "authorization"} for key in config):
         raise ValueError("YouTube API key must use api_key_env, not source config")
+
+
+def _validate_search_common(config: dict[str, Any], name: str) -> None:
+    if not isinstance(config.get("api_key_env"), str) or not config["api_key_env"]:
+        raise ValueError(f"{name} source config requires api_key_env")
+    if not isinstance(config.get("query"), str) or not config["query"]:
+        raise ValueError(f"{name} source config requires query")
+    if any(key.lower() in {"api_key", "key", "authorization"} for key in config):
+        raise ValueError(f"{name} API key must use api_key_env, not source config")
+
+
+def validate_google_search_source_config(config: dict[str, Any]) -> None:
+    _validate_search_common(config, "Google Search")
+    if not isinstance(config.get("search_engine_id"), str) or not config["search_engine_id"]:
+        raise ValueError("Google Search source config requires search_engine_id")
+
+
+def validate_gemini_search_source_config(config: dict[str, Any]) -> None:
+    _validate_search_common(config, "Gemini Search")
 
 
 @router.get("", response_model=list[SourceOutput])

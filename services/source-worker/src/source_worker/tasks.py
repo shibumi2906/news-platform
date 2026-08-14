@@ -22,6 +22,7 @@ from source_worker.fetcher import fetch_feed
 from source_worker.html import collect_html_source
 from source_worker.ingestion import ingest_candidates
 from source_worker.rss import parse_rss_feed
+from source_worker.search import collect_gemini_search_source, collect_google_search_source
 from source_worker.state import record_run
 from source_worker.youtube import collect_youtube_source
 
@@ -123,6 +124,26 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                 return {"created": 0, "duplicates": 0}
             body = b""
             result_etag, result_last_modified = None, None
+        elif source.adapter_type in {"google_search", "gemini_search"}:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                collector = (
+                    collect_google_search_source
+                    if source.adapter_type == "google_search"
+                    else collect_gemini_search_source
+                )
+                candidates, error = await collector(
+                    client,
+                    source_id=source_id,
+                    config=source.config,
+                    fetched_at=utc_now(),
+                    user_agent=settings.http_user_agent,
+                    timeout_seconds=settings.http_timeout_seconds,
+                )
+            if error:
+                await record_run(session_factory, source_id, "failed", 0, error)
+                return {"created": 0, "duplicates": 0}
+            body = b""
+            result_etag, result_last_modified = None, None
         else:
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 result = await fetch_feed(
@@ -135,7 +156,8 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                 )
 
         if (
-            source.adapter_type not in {"html", "api", "browser", "youtube"}
+            source.adapter_type
+            not in {"html", "api", "browser", "youtube", "google_search", "gemini_search"}
             and result.status == "not_modified"
         ):
             await record_run(session_factory, source_id, "not_modified", 0, None)
@@ -143,7 +165,8 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             return {"created": 0, "duplicates": 0}
 
         if (
-            source.adapter_type not in {"html", "api", "browser", "youtube"}
+            source.adapter_type
+            not in {"html", "api", "browser", "youtube", "google_search", "gemini_search"}
             and result.status != "ok"
         ):
             await record_run(session_factory, source_id, "failed", 0, result.error)
@@ -155,7 +178,14 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             )
             return {"created": 0, "duplicates": 0}
 
-        if source.adapter_type not in {"html", "api", "browser", "youtube"}:
+        if source.adapter_type not in {
+            "html",
+            "api",
+            "browser",
+            "youtube",
+            "google_search",
+            "gemini_search",
+        }:
             body = result.body or b""
             result_etag, result_last_modified = result.etag, result.last_modified
         adapter_type = source.adapter_type
