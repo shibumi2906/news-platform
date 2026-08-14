@@ -6,7 +6,7 @@ import { displayCategory } from "@/lib/presentation";
 
 export default async function HomePage() {
   const [articles, categories] = await Promise.all([getPublicArticles(), getPublicCategories()]);
-  const [lead, ...rest] = articles;
+  const [lead, ...rest] = articles.items;
   return (
     <>
       <section className="hero">

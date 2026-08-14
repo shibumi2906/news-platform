@@ -19,6 +19,13 @@ export interface PublicArticle {
   sources: Record<string, unknown>[];
 }
 
+export interface PublicArticlePage {
+  items: PublicArticle[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
 export interface PublicCategory {
   slug: string;
   article_count: number;

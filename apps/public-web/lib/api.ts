@@ -2,6 +2,7 @@ import type {
   AdminArticle,
   AdminArticleDetail,
   PublicArticle,
+  PublicArticlePage,
   PublicCategory,
   PublicLanguage,
 } from "@/lib/types";
@@ -37,12 +38,29 @@ async function requestJson<T>(
   return (await response.json()) as T;
 }
 
-export function getPublicArticles(language?: string, category?: string): Promise<PublicArticle[]> {
+export interface PublicArticleFilters {
+  query?: string;
+  language?: string;
+  category?: string;
+  topic?: string;
+  from_date?: string;
+  to_date?: string;
+  page?: number;
+  page_size?: number;
+  sort?: "newest" | "oldest";
+}
+
+export function publicArticlePath(filters: PublicArticleFilters = {}): string {
   const search = new URLSearchParams();
-  if (language) search.set("language", language);
-  if (category) search.set("category", category);
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  }
   const suffix = search.size ? `?${search}` : "";
-  return requestJson(siteUrl, `/api/v1/public/articles${suffix}`);
+  return `/api/v1/public/articles${suffix}`;
+}
+
+export function getPublicArticles(filters: PublicArticleFilters = {}): Promise<PublicArticlePage> {
+  return requestJson(siteUrl, publicArticlePath(filters));
 }
 
 export function getPublicArticle(id: string, language?: string): Promise<PublicArticle> {

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from common.auth import require_permission
@@ -59,6 +59,13 @@ class PublicCategory(BaseModel):
     article_count: int
 
 
+class PublicArticlePage(BaseModel):
+    items: list[PublicArticle]
+    page: int
+    page_size: int
+    total: int
+
+
 class IncomingPackageSummary(BaseModel):
     id: UUID
     version_id: UUID
@@ -87,31 +94,62 @@ class AdminArticleDetail(AdminArticleSummary):
     publication: dict[str, Any] | None
 
 
-@public_router.get("/articles", response_model=list[PublicArticle])
+@public_router.get("/articles", response_model=PublicArticlePage)
 async def list_public_articles(
     request: Request,
+    query: str | None = Query(default=None, max_length=200),
     language: str | None = None,
     category: str | None = None,
-    limit: int = Query(default=30, ge=1, le=100),
-) -> list[PublicArticle]:
+    topic: str | None = None,
+    from_date: datetime | None = None,
+    to_date: datetime | None = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=30, ge=1, le=100),
+    sort: Literal["newest", "oldest"] = "newest",
+) -> PublicArticlePage:
     async with request.app.state.session_factory() as session:
-        rows = (
-            await session.execute(
-                select(SiteArticle, Publication, ArticleVersion)
-                .join(Publication, Publication.article_id == SiteArticle.id)
-                .join(ArticleVersion, ArticleVersion.id == Publication.active_article_version_id)
-                .where(Publication.status == "published")
-                .order_by(Publication.published_at.desc())
-                .limit(limit)
-            )
-        ).all()
-        articles = [
-            await _public_article(session, article, publication, version, language)
-            for article, publication, version in rows
-        ]
-        if category is not None:
-            articles = [article for article in articles if category in article.taxonomy]
-        return articles
+        articles = await _published_articles(session, language)
+    category_term = category.casefold() if category else None
+    topic_term = topic.casefold() if topic else None
+    needle = query.casefold().strip() if query else None
+    filtered = [
+        article
+        for article in articles
+        if (language is None or article.language == language)
+        and (
+            category_term is None
+            or category_term in {value.casefold() for value in article.taxonomy}
+        )
+        and (topic_term is None or topic_term in {value.casefold() for value in article.taxonomy})
+        and (from_date is None or _utc(article.published_at) >= _utc(from_date))
+        and (to_date is None or _utc(article.published_at) <= _utc(to_date))
+        and (
+            needle is None
+            or needle
+            in " ".join(
+                value
+                for value in [
+                    article.title,
+                    article.lead or "",
+                    article.summary or "",
+                    article.body or "",
+                    *article.tags,
+                    *article.taxonomy,
+                ]
+            ).casefold()
+        )
+    ]
+    filtered.sort(
+        key=lambda article: (article.published_at, str(article.id)), reverse=sort == "newest"
+    )
+    total = len(filtered)
+    start = (page - 1) * page_size
+    return PublicArticlePage(
+        items=filtered[start : start + page_size],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
 
 
 @public_router.get("/articles/{article_id}", response_model=PublicArticle)
@@ -124,7 +162,12 @@ async def get_public_article(
                 select(SiteArticle, Publication, ArticleVersion)
                 .join(Publication, Publication.article_id == SiteArticle.id)
                 .join(ArticleVersion, ArticleVersion.id == Publication.active_article_version_id)
-                .where(SiteArticle.id == article_id, Publication.status == "published")
+                .where(
+                    SiteArticle.id == article_id,
+                    SiteArticle.status == "published",
+                    Publication.status == "published",
+                    Publication.published_at.is_not(None),
+                )
             )
         ).one_or_none()
         if row is None:
@@ -135,7 +178,8 @@ async def get_public_article(
 
 @public_router.get("/categories", response_model=list[PublicCategory])
 async def list_public_categories(request: Request) -> list[PublicCategory]:
-    articles = await list_public_articles(request, limit=100)
+    async with request.app.state.session_factory() as session:
+        articles = await _published_articles(session, None)
     counts: dict[str, int] = {}
     for article in articles:
         for slug in article.taxonomy:
@@ -147,7 +191,8 @@ async def list_public_categories(request: Request) -> list[PublicCategory]:
 
 @public_router.get("/languages", response_model=list[PublicLanguage])
 async def list_public_languages(request: Request) -> list[PublicLanguage]:
-    articles = await list_public_articles(request, limit=100)
+    async with request.app.state.session_factory() as session:
+        articles = await _published_articles(session, None)
     directions: dict[str, str] = {}
     for article in articles:
         directions[article.language] = article.direction
@@ -373,6 +418,28 @@ async def _public_article(
     )
 
 
+async def _published_articles(
+    session: AsyncSession, requested_language: str | None
+) -> list[PublicArticle]:
+    """Return only the active version of currently published articles."""
+    rows = (
+        await session.execute(
+            select(SiteArticle, Publication, ArticleVersion)
+            .join(Publication, Publication.article_id == SiteArticle.id)
+            .join(ArticleVersion, ArticleVersion.id == Publication.active_article_version_id)
+            .where(
+                SiteArticle.status == "published",
+                Publication.status == "published",
+                Publication.published_at.is_not(None),
+            )
+        )
+    ).all()
+    return [
+        await _public_article(session, article, publication, version, requested_language)
+        for article, publication, version in rows
+    ]
+
+
 def _admin_summary(article: SiteArticle) -> AdminArticleSummary:
     return AdminArticleSummary(
         id=article.id,
@@ -393,6 +460,10 @@ def _original_content(payload: dict[str, Any]) -> dict[str, Any]:
 def _text(data: dict[str, Any], key: str, default: str) -> str:
     value = data.get(key)
     return value if isinstance(value, str) and value else default
+
+
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _optional_text(data: dict[str, Any], key: str) -> str | None:
