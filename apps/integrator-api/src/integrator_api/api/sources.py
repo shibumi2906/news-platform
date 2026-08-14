@@ -33,7 +33,7 @@ class SourceOutput(SourceInput):
 
 @router.post("", response_model=SourceOutput, status_code=201)
 async def create(payload: SourceInput, request: Request) -> SourceOutput:
-    if payload.adapter_type not in {"rss", "html", "api", "browser"}:
+    if payload.adapter_type not in {"rss", "html", "api", "browser", "youtube"}:
         raise HTTPException(422, "adapter type is not implemented")
     if payload.feed_url.username is not None or payload.feed_url.password is not None:
         raise HTTPException(422, "source URL credentials must use external secret storage")
@@ -50,6 +50,11 @@ async def create(payload: SourceInput, request: Request) -> SourceOutput:
     if payload.adapter_type == "browser":
         try:
             validate_html_source_config(payload.config)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    if payload.adapter_type == "youtube":
+        try:
+            validate_youtube_source_config(payload.config)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
     async with request.app.state.session_factory() as session:
@@ -91,6 +96,18 @@ def validate_api_source_config(config: dict[str, Any]) -> None:
         raise ValueError("API source headers must be an object")
     if any("authorization" in key.lower() or "api-key" in key.lower() for key in headers):
         raise ValueError("API secrets must use auth_env, not stored headers")
+
+
+def validate_youtube_source_config(config: dict[str, Any]) -> None:
+    if not isinstance(config.get("api_key_env"), str) or not config["api_key_env"]:
+        raise ValueError("YouTube source config requires api_key_env")
+    if not any(
+        isinstance(config.get(key), str) and config[key]
+        for key in ("channel_id", "channel_url", "playlist_id")
+    ):
+        raise ValueError("YouTube source config requires channel_id, channel_url, or playlist_id")
+    if any(key.lower() in {"api_key", "key", "authorization"} for key in config):
+        raise ValueError("YouTube API key must use api_key_env, not source config")
 
 
 @router.get("", response_model=list[SourceOutput])

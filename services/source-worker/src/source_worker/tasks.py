@@ -23,6 +23,7 @@ from source_worker.html import collect_html_source
 from source_worker.ingestion import ingest_candidates
 from source_worker.rss import parse_rss_feed
 from source_worker.state import record_run
+from source_worker.youtube import collect_youtube_source
 
 configure_logging(settings.log_level)
 logger = get_logger(__name__)
@@ -107,6 +108,21 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                 return {"created": 0, "duplicates": 0}
             body = b""
             result_etag, result_last_modified = None, None
+        elif source.adapter_type == "youtube":
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                candidates, error = await collect_youtube_source(
+                    client,
+                    source_id=source_id,
+                    config=source.config,
+                    fetched_at=utc_now(),
+                    user_agent=settings.http_user_agent,
+                    timeout_seconds=settings.http_timeout_seconds,
+                )
+            if error:
+                await record_run(session_factory, source_id, "failed", 0, error)
+                return {"created": 0, "duplicates": 0}
+            body = b""
+            result_etag, result_last_modified = None, None
         else:
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 result = await fetch_feed(
@@ -119,14 +135,17 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                 )
 
         if (
-            source.adapter_type not in {"html", "api", "browser"}
+            source.adapter_type not in {"html", "api", "browser", "youtube"}
             and result.status == "not_modified"
         ):
             await record_run(session_factory, source_id, "not_modified", 0, None)
             logger.info("source_poll_not_modified", source_id=str(source_id))
             return {"created": 0, "duplicates": 0}
 
-        if source.adapter_type not in {"html", "api", "browser"} and result.status != "ok":
+        if (
+            source.adapter_type not in {"html", "api", "browser", "youtube"}
+            and result.status != "ok"
+        ):
             await record_run(session_factory, source_id, "failed", 0, result.error)
             logger.warning(
                 "source_fetch_failed",
@@ -136,7 +155,7 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             )
             return {"created": 0, "duplicates": 0}
 
-        if source.adapter_type not in {"html", "api", "browser"}:
+        if source.adapter_type not in {"html", "api", "browser", "youtube"}:
             body = result.body or b""
             result_etag, result_last_modified = result.etag, result.last_modified
         adapter_type = source.adapter_type
