@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
-
-const siteName = process.env.NEXT_PUBLIC_SITE_NAME ?? "Signal Desk";
-const publicUrl = process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3000";
+import { publicUrl, siteName } from "@/lib/public-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +9,10 @@ export const metadata: Metadata = {
   metadataBase: new URL(publicUrl),
   title: { default: siteName, template: `%s · ${siteName}` },
   description: "Independent, source-aware reporting from the News Platform.",
-  alternates: { types: { "application/rss+xml": "/rss.xml" } },
+  alternates: { canonical: "/", types: { "application/rss+xml": "/rss.xml" } },
   robots: { index: true, follow: true },
+  openGraph: { type: "website", url: "/", siteName, title: siteName, description: "Independent, source-aware reporting from the News Platform." },
+  twitter: { card: "summary", title: siteName, description: "Independent, source-aware reporting from the News Platform." },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -33,6 +33,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main id="main-content">{children}</main>
         <footer className="site-footer">
           <span>{siteName}</span>
+          <Link href="/about">About</Link>
+          <Link href="/contact">Contact</Link>
+          <Link href="/editorial-policy">Editorial Policy</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
           <Link href="/rss.xml">RSS</Link>
         </footer>
       </body>
