@@ -8,6 +8,7 @@ from site_domain.models.distribution import (
     DistributionJob,
 )
 from site_domain.models.editorial_task import EditorialTask
+from site_domain.models.entity import ArticleVersionEntity, SiteEntity
 from site_domain.models.event import SiteEvent
 from site_domain.models.incoming_package import IncomingPackage, IncomingPackageVersion
 from site_domain.models.ingestion_attempt import IngestionAttempt
@@ -37,6 +38,7 @@ from site_domain.models.site_article import SiteArticle
 
 __all__ = [
     "ArticleSourceLink",
+    "ArticleVersionEntity",
     "ArticleVersion",
     "ArticleTranslationVersion",
     "AdminSession",
@@ -65,6 +67,7 @@ __all__ = [
     "Role",
     "SecretRevision",
     "SiteArticle",
+    "SiteEntity",
     "SiteEvent",
     "UnifiedJob",
     "UnifiedJobAttempt",

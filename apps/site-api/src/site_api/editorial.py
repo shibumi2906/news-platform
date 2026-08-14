@@ -11,6 +11,7 @@ from site_domain.models import (
     ArticleSourceLink,
     ArticleTranslationVersion,
     ArticleVersion,
+    ArticleVersionEntity,
     CorrectionNotice,
     EditorialTask,
     IncomingPackage,
@@ -18,6 +19,7 @@ from site_domain.models import (
     Publication,
     ReviewDecision,
     SiteArticle,
+    SiteEntity,
     SiteEvent,
 )
 from site_domain.workflow import (
@@ -62,6 +64,7 @@ async def create_article_from_package(
     )
     session.add(version)
     await session.flush()
+    await _link_package_entities(session, version.id, package_version.payload)
     original_content = package_version.payload.get("content", {})
     source_language = str(original_content.get("language", "und"))
     for language_code, translated_content in package_version.payload.get(
@@ -127,6 +130,7 @@ async def create_version(
     )
     session.add(version)
     await session.flush()
+    await _copy_entity_links(session, article.id, version.id)
     if correction_explanation is not None:
         if not correction_explanation.strip():
             raise ValidationDomainError("correction explanation is required")
@@ -172,6 +176,78 @@ async def _event_for_package(session: AsyncSession, payload: dict[str, object]) 
     session.add(event)
     await session.flush()
     return event
+
+
+async def _link_package_entities(
+    session: AsyncSession, article_version_id: UUID, payload: dict[str, object]
+) -> None:
+    raw_entities = payload.get("entities")
+    if not isinstance(raw_entities, list):
+        return
+    entity_ids: set[UUID] = set()
+    for raw_entity in raw_entities:
+        if not isinstance(raw_entity, dict):
+            continue
+        name, kind = raw_entity.get("name"), raw_entity.get("kind")
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(kind, str)
+            or not kind.strip()
+        ):
+            continue
+        normalized_name = name.strip().casefold()
+        entity = (
+            await session.execute(
+                select(SiteEntity).where(
+                    SiteEntity.kind == kind.strip(),
+                    SiteEntity.normalized_name == normalized_name,
+                )
+            )
+        ).scalar_one_or_none()
+        if entity is None:
+            entity = SiteEntity(
+                name=name.strip(), normalized_name=normalized_name, kind=kind.strip()
+            )
+            session.add(entity)
+            await session.flush()
+        entity_ids.add(entity.id)
+    session.add_all(
+        [
+            ArticleVersionEntity(article_version_id=article_version_id, entity_id=entity_id)
+            for entity_id in entity_ids
+        ]
+    )
+
+
+async def _copy_entity_links(
+    session: AsyncSession, article_id: UUID, new_version_id: UUID
+) -> None:
+    previous_version_id = (
+        await session.execute(
+            select(ArticleVersion.id)
+            .where(ArticleVersion.article_id == article_id, ArticleVersion.id != new_version_id)
+            .order_by(ArticleVersion.version_number.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if previous_version_id is None:
+        return
+    entity_ids = list(
+        (
+            await session.execute(
+                select(ArticleVersionEntity.entity_id).where(
+                    ArticleVersionEntity.article_version_id == previous_version_id
+                )
+            )
+        ).scalars()
+    )
+    session.add_all(
+        [
+            ArticleVersionEntity(article_version_id=new_version_id, entity_id=entity_id)
+            for entity_id in entity_ids
+        ]
+    )
 
 
 async def submit_for_review(

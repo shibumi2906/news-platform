@@ -11,8 +11,10 @@ from site_api.main import create_app
 from site_domain.models import (
     ArticleTranslationVersion,
     ArticleVersion,
+    ArticleVersionEntity,
     Publication,
     SiteArticle,
+    SiteEntity,
     SiteEvent,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -40,6 +42,9 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
         )
         session.add(event)
         await session.flush()
+        entity = SiteEntity(name="Acme", normalized_name="acme", kind="organization")
+        session.add(entity)
+        await session.flush()
         article = SiteArticle(status="published", latest_version_number=1)
         session.add(article)
         await session.flush()
@@ -59,13 +64,14 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
                 },
                 "taxonomy": ["launches"],
                 "facts": [{"statement": "Launch happened"}],
-                "entities": [],
+                "entities": [{"name": "Acme", "kind": "organization"}],
                 "sources": [],
             },
             event_id=event.id,
         )
         session.add(version)
         await session.flush()
+        session.add(ArticleVersionEntity(article_version_id=version.id, entity_id=entity.id))
         session.add_all(
             [
                 ArticleTranslationVersion(
@@ -111,6 +117,7 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
         )
         session.add(version_two)
         await session.flush()
+        session.add(ArticleVersionEntity(article_version_id=version_two.id, entity_id=entity.id))
         session.add(
             Publication(
                 article_id=article_two.id,
@@ -230,3 +237,23 @@ async def test_public_events_only_include_published_timeline_articles(
         "Sports report",
     ]
     assert (await client.get("/api/v1/public/events/not-a-uuid")).status_code == 422
+
+
+async def test_public_entities_only_include_published_linked_articles(
+    client: httpx.AsyncClient,
+) -> None:
+    entities = await client.get("/api/v1/public/entities")
+    assert entities.status_code == 200
+    assert entities.json()[0]["name"] == "Acme"
+    assert entities.json()[0]["kind"] == "organization"
+    assert entities.json()[0]["article_count"] == 2
+    entity_id = entities.json()[0]["id"]
+    detail = await client.get(f"/api/v1/public/entities/{entity_id}?language=en")
+    assert detail.status_code == 200
+    assert [article["title"] for article in detail.json()["articles"]] == [
+        "Launch story",
+        "Sports report",
+    ]
+    translated = await client.get(f"/api/v1/public/entities/{entity_id}?language=ar")
+    assert [article["title"] for article in translated.json()["articles"]] == ["Arabic launch"]
+    assert (await client.get("/api/v1/public/entities/not-a-uuid")).status_code == 422

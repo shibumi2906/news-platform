@@ -39,6 +39,18 @@ export interface PublicEventDetail extends PublicEvent {
   articles: PublicArticle[];
 }
 
+export interface PublicEntity {
+  id: string;
+  name: string;
+  kind: string;
+  latest_published_at: string;
+  article_count: number;
+}
+
+export interface PublicEntityDetail extends PublicEntity {
+  articles: PublicArticle[];
+}
+
 export interface PublicCategory {
   slug: string;
   article_count: number;

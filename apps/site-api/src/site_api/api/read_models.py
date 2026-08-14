@@ -12,12 +12,14 @@ from pydantic import BaseModel, Field
 from site_domain.models import (
     ArticleTranslationVersion,
     ArticleVersion,
+    ArticleVersionEntity,
     EditorialTask,
     IncomingPackage,
     IncomingPackageVersion,
     Publication,
     ReviewDecision,
     SiteArticle,
+    SiteEntity,
     SiteEvent,
 )
 from sqlalchemy import select
@@ -77,6 +79,18 @@ class PublicEvent(BaseModel):
 
 
 class PublicEventDetail(PublicEvent):
+    articles: list[PublicArticle]
+
+
+class PublicEntity(BaseModel):
+    id: UUID
+    name: str
+    kind: str
+    latest_published_at: datetime
+    article_count: int
+
+
+class PublicEntityDetail(PublicEntity):
     articles: list[PublicArticle]
 
 
@@ -213,6 +227,34 @@ async def get_public_event(
     event, articles = group
     summary = _event_summary(event, articles)
     return PublicEventDetail(
+        **summary.model_dump(),
+        articles=sorted(articles, key=lambda article: article.published_at),
+    )
+
+
+@public_router.get("/entities", response_model=list[PublicEntity])
+async def list_public_entities(request: Request, language: str | None = None) -> list[PublicEntity]:
+    async with request.app.state.session_factory() as session:
+        grouped = await _published_entities(session, language)
+    return sorted(
+        (_entity_summary(entity, articles) for entity, articles in grouped.values()),
+        key=lambda entity: entity.latest_published_at,
+        reverse=True,
+    )
+
+
+@public_router.get("/entities/{entity_id}", response_model=PublicEntityDetail)
+async def get_public_entity(
+    entity_id: UUID, request: Request, language: str | None = None
+) -> PublicEntityDetail:
+    async with request.app.state.session_factory() as session:
+        grouped = await _published_entities(session, language)
+    group = grouped.get(entity_id)
+    if group is None:
+        raise HTTPException(404, "published entity not found")
+    entity, articles = group
+    summary = _entity_summary(entity, articles)
+    return PublicEntityDetail(
         **summary.model_dump(),
         articles=sorted(articles, key=lambda article: article.published_at),
     )
@@ -514,6 +556,42 @@ def _event_summary(event: SiteEvent, articles: list[PublicArticle]) -> PublicEve
         title=event.title,
         summary=event.summary,
         taxonomy=list(event.taxonomy),
+        latest_published_at=max(article.published_at for article in articles),
+        article_count=len(articles),
+    )
+
+
+async def _published_entities(
+    session: AsyncSession, language: str | None
+) -> dict[UUID, tuple[SiteEntity, list[PublicArticle]]]:
+    articles = await _published_articles(session, language)
+    if language is not None:
+        articles = [article for article in articles if article.language == language]
+    version_ids = [article.article_version_id for article in articles]
+    if not version_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(ArticleVersionEntity.article_version_id, SiteEntity)
+            .join(SiteEntity, SiteEntity.id == ArticleVersionEntity.entity_id)
+            .where(ArticleVersionEntity.article_version_id.in_(version_ids))
+        )
+    ).all()
+    entities_by_version: dict[UUID, list[SiteEntity]] = {}
+    for version_id, entity in rows:
+        entities_by_version.setdefault(version_id, []).append(entity)
+    grouped: dict[UUID, tuple[SiteEntity, list[PublicArticle]]] = {}
+    for article in articles:
+        for entity in entities_by_version.get(article.article_version_id, []):
+            grouped.setdefault(entity.id, (entity, []))[1].append(article)
+    return grouped
+
+
+def _entity_summary(entity: SiteEntity, articles: list[PublicArticle]) -> PublicEntity:
+    return PublicEntity(
+        id=entity.id,
+        name=entity.name,
+        kind=entity.kind,
         latest_published_at=max(article.published_at for article in articles),
         article_count=len(articles),
     )
