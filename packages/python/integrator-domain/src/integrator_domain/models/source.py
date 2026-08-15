@@ -30,6 +30,10 @@ class Source(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_modified: Mapped[str | None] = mapped_column(String(1024), default=None)
     last_error: Mapped[str | None] = mapped_column(String(1000), default=None)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    health_status: Mapped[str] = mapped_column(String(32), default="healthy")
+    health_reason: Mapped[str | None] = mapped_column(String(1000), default=None)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class SourceSnapshot(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -48,6 +52,15 @@ class SourceRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(32))
     error: Mapped[str | None] = mapped_column(String(1000), default=None)
     created_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SourceStateAudit(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "source_state_audit"
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source.id"))
+    previous_status: Mapped[str | None] = mapped_column(String(32), default=None)
+    status: Mapped[str] = mapped_column(String(32))
+    reason: Mapped[str | None] = mapped_column(String(1000), default=None)
+    diagnostics: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
 
 
 class SourceMaterial(Base, UUIDPrimaryKeyMixin, TimestampMixin):

@@ -57,6 +57,9 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
         if source is None or not source.is_active:
             logger.warning("source_poll_skipped", source_id=str(source_id))
             return {"created": 0, "duplicates": 0}
+        if source.next_retry_at and source.next_retry_at > utc_now():
+            logger.info("source_poll_backoff", source_id=str(source_id))
+            return {"created": 0, "duplicates": 0}
 
         if source.adapter_type in {"html", "browser"}:
             try:

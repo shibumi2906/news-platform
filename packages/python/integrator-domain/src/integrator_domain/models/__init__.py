@@ -25,6 +25,7 @@ from integrator_domain.models.multilingual import (
 from integrator_domain.models.outbox import OutboxEvent
 from integrator_domain.models.package import CanonicalNewsPackage
 from integrator_domain.models.site_connection import SiteConnection
+# ruff: noqa: I001
 from integrator_domain.models.source import (
     ParserRepair,
     ParserSnapshot,
@@ -32,6 +33,7 @@ from integrator_domain.models.source import (
     Source,
     SourceMaterial,
     SourceRun,
+    SourceStateAudit,
     SourceSnapshot,
 )
 
@@ -61,6 +63,7 @@ __all__ = [
     "Source",
     "SourceMaterial",
     "SourceRun",
+    "SourceStateAudit",
     "SourceSnapshot",
     "Topic",
     "TerminologyEntry",

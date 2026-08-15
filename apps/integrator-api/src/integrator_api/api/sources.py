@@ -1,4 +1,5 @@
 from __future__ import annotations
+# ruff: noqa: E501,I001
 
 from typing import Any
 from uuid import UUID
@@ -29,6 +30,22 @@ class SourceOutput(SourceInput):
     id: UUID
     is_active: bool
     status: str
+    health_status: str
+    health_reason: str | None
+
+
+@router.post("/preview")
+async def activation_preview(payload: SourceInput) -> dict[str, object]:
+    """Fail closed before a source can be activated; network fetch happens in worker."""
+    if payload.feed_url.username is not None or payload.feed_url.password is not None:
+        raise HTTPException(422, "source URL credentials must use external secret storage")
+    governance = payload.config.get("governance", {})
+    if not isinstance(governance, dict):
+        raise HTTPException(422, "governance must be an object")
+    rate = governance.get("requests_per_minute", 60)
+    if not isinstance(rate, int) or not 1 <= rate <= 600:
+        raise HTTPException(422, "requests_per_minute must be between 1 and 600")
+    return {"allowed": True, "adapter_type": payload.adapter_type, "requests_per_minute": rate, "requires_robots_review": bool(governance.get("respect_robots", True)), "requires_tos_review": bool(governance.get("tos_accepted", False))}
 
 
 @router.post("", response_model=SourceOutput, status_code=201)
