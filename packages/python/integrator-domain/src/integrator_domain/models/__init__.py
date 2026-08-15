@@ -9,7 +9,13 @@ from integrator_domain.models.ai import (
     Topic,
 )
 from integrator_domain.models.delivery import Delivery, DeliveryAttempt
-from integrator_domain.models.event import Event, EventMaterial
+from integrator_domain.models.event import (
+    Event,
+    EventClusteringPolicy,
+    EventClusterOperation,
+    EventMatchReview,
+    EventMaterial,
+)
 from integrator_domain.models.multilingual import (
     LanguageConfig,
     MaterialLanguageDetection,
@@ -27,6 +33,9 @@ __all__ = [
     "Delivery",
     "DeliveryAttempt",
     "Event",
+    "EventClusterOperation",
+    "EventClusteringPolicy",
+    "EventMatchReview",
     "EventMaterial",
     "DraftProvenance",
     "ExtractedEntity",

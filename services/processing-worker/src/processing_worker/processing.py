@@ -15,6 +15,7 @@ from integrator_domain.models import (
     CanonicalNewsPackage,
     DraftProvenance,
     Event,
+    EventMatchReview,
     EventMaterial,
     ExtractedEntity,
     ExtractedFact,
@@ -36,6 +37,7 @@ from processing_worker.ai_gateway import (
     FakeAIProvider,
     GatewayResponse,
 )
+from processing_worker.event_intelligence import decide_cluster
 from processing_worker.packaging import build_ai_package_envelope, envelope_to_row
 from processing_worker.prompt_registry import get_active_prompt
 from processing_worker.schemas import DraftOutput, ExtractionOutput, RelevanceOutput
@@ -364,17 +366,26 @@ async def _store_extraction_and_cluster(
 ) -> tuple[UUID, list[UUID]]:
     cluster_key = sha256_hex(output.event_key.casefold())
     async with session_factory() as session, session.begin():
-        event = (
-            await session.execute(select(Event).where(Event.cluster_key == cluster_key))
-        ).scalar_one_or_none()
-        if event is None:
-            event = await session.get(Event, stub_event_id)
-            if event is None:
-                raise ValueError("event stub disappeared")
+        stub = await session.get(Event, stub_event_id)
+        if stub is None:
+            raise ValueError("event stub disappeared")
+        decision = await decide_cluster(
+            session,
+            material,
+            event_key=cluster_key,
+            entity_names=[entity.name for entity in output.entities],
+        )
+        event = await session.get(Event, decision.event_id) if decision.event_id else None
+        if decision.action == "auto_merge" and event is not None:
+            stub.status = "merged"
+            stub.merged_into_event_id = event.id
+            event.cluster_confidence = max(event.cluster_confidence, decision.score)
+        else:
+            event = stub
             event.cluster_key = cluster_key
             event.title = material.title
             event.summary = material.excerpt
-            event.cluster_confidence = 0.8
+            event.cluster_confidence = decision.score if decision.score else 1.0
         exists = await session.scalar(
             select(EventMaterial.id).where(
                 EventMaterial.event_id == event.id,
@@ -384,7 +395,21 @@ async def _store_extraction_and_cluster(
         if exists is None:
             session.add(
                 EventMaterial(
-                    event_id=event.id, source_material_id=material.id, similarity_score=0.8
+                    event_id=event.id,
+                    source_material_id=material.id,
+                    similarity_score=decision.score,
+                    decision=decision.action,
+                    evidence=decision.evidence,
+                )
+            )
+        if decision.action == "review" and decision.event_id is not None:
+            session.add(
+                EventMatchReview(
+                    source_material_id=material.id,
+                    proposed_event_id=stub.id,
+                    candidate_event_id=decision.event_id,
+                    score=decision.score,
+                    evidence=decision.evidence,
                 )
             )
         fact_ids: list[UUID] = []
