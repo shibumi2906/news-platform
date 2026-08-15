@@ -29,6 +29,7 @@ class CanonicalNewsPackage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     facts: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     entities: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     taxonomy: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
+    regions: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     sources: Mapped[list[Any]] = mapped_column(PortableJSON)
     language_versions: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
     media: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)

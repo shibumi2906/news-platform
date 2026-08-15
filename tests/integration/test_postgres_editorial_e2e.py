@@ -198,7 +198,7 @@ async def _run() -> None:
             ) as client:
                 assert (
                     await client.get(f"/api/v1/public/articles/{published_article_id}")
-                ).status_code == 404
+                ).status_code == 410
             async with factory() as session:
                 publication = (await session.execute(select(Publication))).scalar_one()
                 assert publication.active_article_version_id is not None

@@ -27,6 +27,7 @@ def package_row_to_envelope(package: CanonicalNewsPackage) -> CanonicalNewsPacka
         facts=package.facts,
         entities=package.entities,
         taxonomy=package.taxonomy,
+        regions=package.regions or [],
         sources=[PackageSourceRef(**source) for source in package.sources],
         language_versions={
             language: PackageContent(**content)

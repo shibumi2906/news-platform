@@ -3,10 +3,13 @@ import { ArticleCard } from "@/components/article-card";
 import { EmptyState } from "@/components/empty-state";
 import { getPublicArticles } from "@/lib/api";
 import { displayCategory } from "@/lib/presentation";
+import { publicRouteMetadata } from "@/lib/public-metadata";
+import { getPublicLanguages } from "@/lib/api";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return { title: displayCategory(slug), description: `Published reporting about ${displayCategory(slug)}.` };
+  const languages = await getPublicLanguages();
+  return publicRouteMetadata(`/categories/${encodeURIComponent(slug)}`, displayCategory(slug), `Published reporting about ${displayCategory(slug)}.`, { languages: languages.map((language) => language.code) });
 }
 
 export default async function CategoryPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ lang?: string }> }) {

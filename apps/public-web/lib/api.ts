@@ -9,6 +9,7 @@ import type {
   PublicEntity,
   PublicEntityDetail,
   PublicLanguage,
+  PublicRegion,
 } from "@/lib/types";
 import { cookies } from "next/headers";
 import { requireSession, SESSION_COOKIE } from "@/lib/session";
@@ -36,7 +37,9 @@ async function requestJson<T>(
     next: options.admin ? undefined : { revalidate: options.revalidate ?? 60 },
   });
   if (!response.ok) {
-    if (response.status === 404) throw new Response("Not found", { status: 404 });
+    if (response.status === 404 || response.status === 410) {
+      throw new Response(response.status === 410 ? "Gone" : "Not found", { status: response.status });
+    }
     throw new Error(`API request failed (${response.status})`);
   }
   return (await response.json()) as T;
@@ -47,6 +50,7 @@ export interface PublicArticleFilters {
   language?: string;
   category?: string;
   topic?: string;
+  region?: string;
   from_date?: string;
   to_date?: string;
   page?: number;
@@ -67,6 +71,15 @@ export function getPublicArticles(filters: PublicArticleFilters = {}): Promise<P
   return requestJson(siteUrl, publicArticlePath(filters));
 }
 
+export async function getAllPublicArticles(): Promise<PublicArticle[]> {
+  const first = await getPublicArticles({ page: 1, page_size: 100 });
+  const items = [...first.items];
+  for (let page = 2; (page - 1) * first.page_size < first.total; page += 1) {
+    items.push(...(await getPublicArticles({ page, page_size: first.page_size })).items);
+  }
+  return items;
+}
+
 export function getPublicArticle(id: string, language?: string): Promise<PublicArticle> {
   const suffix = language ? `?language=${encodeURIComponent(language)}` : "";
   return requestJson(siteUrl, `/api/v1/public/articles/${encodeURIComponent(id)}${suffix}`);
@@ -74,6 +87,10 @@ export function getPublicArticle(id: string, language?: string): Promise<PublicA
 
 export function getPublicCategories(): Promise<PublicCategory[]> {
   return requestJson(siteUrl, "/api/v1/public/categories");
+}
+
+export function getPublicRegions(): Promise<PublicRegion[]> {
+  return requestJson(siteUrl, "/api/v1/public/regions");
 }
 
 export function getPublicLanguages(): Promise<PublicLanguage[]> {

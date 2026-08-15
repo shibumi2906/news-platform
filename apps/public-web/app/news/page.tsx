@@ -4,13 +4,19 @@ import { ArticleCard } from "@/components/article-card";
 import { EmptyState } from "@/components/empty-state";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { getPublicArticles, getPublicCategories, getPublicLanguages } from "@/lib/api";
-
-export const metadata: Metadata = { title: "News feed", description: "Latest published news." };
+import { publicRouteMetadata } from "@/lib/public-metadata";
 
 type SearchParams = {
   query?: string; lang?: string; category?: string; topic?: string;
   from_date?: string; to_date?: string; page?: string; sort?: "newest" | "oldest";
 };
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
+  const [params, languages] = await Promise.all([searchParams, getPublicLanguages()]);
+  const hasFilter = Boolean(params.query || params.category || params.topic || params.from_date || params.to_date || params.sort === "oldest" || (params.page && Number(params.page) > 1));
+  const canonical = params.lang ? `/news?lang=${encodeURIComponent(params.lang)}` : "/news";
+  return publicRouteMetadata(canonical, "News feed", "Latest published news.", { languages: languages.map((language) => language.code), noindex: hasFilter });
+}
 
 export default async function NewsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;

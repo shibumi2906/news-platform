@@ -53,6 +53,7 @@ class CanonicalNewsPackageEnvelope(BaseModel):
     facts: list[dict[str, Any]] = Field(default_factory=list)
     entities: list[dict[str, Any]] = Field(default_factory=list)
     taxonomy: list[str] = Field(default_factory=list)
+    regions: list[str] = Field(default_factory=list)
     sources: list[PackageSourceRef]
     language_versions: dict[str, PackageContent] = Field(default_factory=dict)
     media: list[dict[str, Any]] = Field(default_factory=list)

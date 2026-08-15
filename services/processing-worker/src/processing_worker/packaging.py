@@ -67,6 +67,7 @@ def build_ai_package_envelope(
     facts: list[dict[str, Any]],
     entities: list[dict[str, Any]],
     taxonomy: list[str],
+    regions: list[str],
     source_language: str,
     source_direction: str,
     language_versions: dict[str, PackageContent],
@@ -95,6 +96,7 @@ def build_ai_package_envelope(
         facts=facts,
         entities=entities,
         taxonomy=taxonomy,
+        regions=regions,
         language_versions=language_versions,
         sources=[
             PackageSourceRef(
@@ -126,6 +128,7 @@ def envelope_to_row(envelope: CanonicalNewsPackageEnvelope) -> CanonicalNewsPack
         facts=envelope.facts,
         entities=envelope.entities,
         taxonomy=envelope.taxonomy,
+        regions=envelope.regions,
         sources=[source.model_dump(mode="json") for source in envelope.sources],
         language_versions={
             language: content.model_dump(mode="json")

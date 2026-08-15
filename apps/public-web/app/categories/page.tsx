@@ -3,8 +3,9 @@ import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { getPublicCategories } from "@/lib/api";
 import { displayCategory } from "@/lib/presentation";
+import { publicMetadata } from "@/lib/public-metadata";
 
-export const metadata: Metadata = { title: "Topics" };
+export const metadata: Metadata = publicMetadata("/categories", "Topics", "Configured topics in published reporting.");
 
 export default async function CategoriesPage() {
   const categories = await getPublicCategories();

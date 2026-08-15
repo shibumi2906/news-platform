@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { ServicePage } from "@/components/service-page";
-import { publicMetadata } from "@/lib/public-metadata";
+import { publicRouteMetadata } from "@/lib/public-metadata";
+import { serviceCopy } from "@/lib/service-content";
 
-export const metadata: Metadata = publicMetadata("/terms", "Terms", "Terms for using the Signal Desk public portal.");
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ lang?: string }> }): Promise<Metadata> { const { lang } = await searchParams; const copy = serviceCopy("terms", lang); return publicRouteMetadata(`/terms${copy.language === "en" ? "" : `?lang=${copy.language}`}`, copy.copy.title, "Terms for using the Signal Desk public portal.", { languages: ["en", "ar"] }); }
 
 export default function TermsPage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
-  return <ServicePage title="Terms of use" eyebrow="Terms" searchParams={searchParams}><p>Use this public portal lawfully and respect applicable rights in the reporting, media and linked source material.</p><p>Published material is provided for information. Links to external sources do not imply their endorsement, and their availability is outside the newsroom’s control.</p><p>Do not attempt to disrupt the service, bypass access controls or misuse public endpoints.</p></ServicePage>;
+  return <ServicePage page="terms" searchParams={searchParams} />;
 }

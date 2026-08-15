@@ -211,6 +211,13 @@ async def _process_one(
                     *([match.category_slug] if match.category_slug else []),
                 )
             ],
+            regions=[
+                region
+                for match in relevant_matches
+                for topic in topics
+                if topic.id == match.topic_id
+                for region in topic.regions
+            ],
         )
         await _set_outbox_status(session_factory, outbox_event_id, "processed")
         logger.info(
@@ -414,6 +421,7 @@ async def _create_event_draft(
     gateway: AIGateway,
     *,
     taxonomy: list[str],
+    regions: list[str],
 ) -> None:
     async with session_factory() as session:
         event = await session.get(Event, event_id)
@@ -543,6 +551,7 @@ async def _create_event_draft(
         facts=fact_payload,
         entities=entity_payload,
         taxonomy=list(dict.fromkeys(taxonomy)),
+        regions=list(dict.fromkeys(regions)),
         source_language=translation_bundle.source_language_code,
         source_direction=translation_bundle.source_direction,
         language_versions=language_versions,

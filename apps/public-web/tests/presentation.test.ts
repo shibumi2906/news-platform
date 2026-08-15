@@ -4,7 +4,7 @@ import type { PublicArticle } from "@/lib/types";
 
 const article: PublicArticle = {
   id: "1", article_version_id: "2", title: "Headline", lead: "Lead", body: "Body",
-  summary: "Summary", tags: [], taxonomy: [], language: "en", direction: "ltr",
+  summary: "Summary", tags: [], taxonomy: [], regions: [], language: "en", direction: "ltr",
   available_languages: ["en"], published_at: "2026-08-07T00:00:00Z",
   updated_at: "2026-08-07T00:00:00Z", facts: [], entities: [], sources: [],
 };

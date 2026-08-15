@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(publicUrl),
   title: { default: siteName, template: `%s · ${siteName}` },
   description: "Independent, source-aware reporting from the News Platform.",
-  alternates: { canonical: "/", types: { "application/rss+xml": "/rss.xml" } },
+  alternates: { types: { "application/rss+xml": "/rss.xml" } },
   robots: { index: true, follow: true },
   openGraph: { type: "website", url: "/", siteName, title: siteName, description: "Independent, source-aware reporting from the News Platform." },
   twitter: { card: "summary", title: siteName, description: "Independent, source-aware reporting from the News Platform." },
@@ -28,6 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Link href="/events">Events</Link>
             <Link href="/entities">Entities</Link>
             <Link href="/categories">Topics</Link>
+            <Link href="/regions">Regions</Link>
             <Link href="/admin">Admin</Link>
           </nav>
         </header>

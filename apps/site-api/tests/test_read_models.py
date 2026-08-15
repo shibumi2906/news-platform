@@ -63,9 +63,10 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
                     "direction": "ltr",
                 },
                 "taxonomy": ["launches"],
+                "regions": ["Europe"],
                 "facts": [{"statement": "Launch happened"}],
                 "entities": [{"name": "Acme", "kind": "organization"}],
-                "sources": [],
+                "sources": [{"url": "https://example.test/launch"}],
             },
             event_id=event.id,
         )
@@ -160,6 +161,7 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
                 ),
             ]
         )
+        app.state.unpublished_article_id = unpublished.id
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as test_client:
@@ -185,6 +187,12 @@ async def test_public_read_model_supports_translation_and_taxonomy(
     ]
     languages = (await client.get("/api/v1/public/languages")).json()
     assert {item["code"] for item in languages} == {"en", "ar"}
+    assert (await client.get("/api/v1/public/regions")).json() == [
+        {"slug": "Europe", "article_count": 1}
+    ]
+    regional = (await client.get("/api/v1/public/articles?region=europe")).json()
+    assert regional["total"] == 1
+    assert regional["items"][0]["sources"] == [{"url": "https://example.test/launch"}]
 
 
 async def test_admin_read_model_requires_configured_token(client: httpx.AsyncClient) -> None:
@@ -206,6 +214,12 @@ async def test_unpublished_article_is_not_public(client: httpx.AsyncClient) -> N
     response = await client.get("/api/v1/public/articles")
     assert response.status_code == 200
     assert response.json()["total"] == 2
+
+
+async def test_permanently_unpublished_article_returns_gone(client: httpx.AsyncClient) -> None:
+    article_id = client._transport.app.state.unpublished_article_id  # type: ignore[attr-defined]
+    response = await client.get(f"/api/v1/public/articles/{article_id}")
+    assert response.status_code == 410
 
 
 async def test_public_read_model_search_filters_pagination_and_sorting(

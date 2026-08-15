@@ -42,6 +42,7 @@ class PublicArticle(BaseModel):
     summary: str | None = None
     tags: list[str] = Field(default_factory=list)
     taxonomy: list[str] = Field(default_factory=list)
+    regions: list[str] = Field(default_factory=list)
     language: str
     direction: str
     available_languages: list[str] = Field(default_factory=list)
@@ -62,6 +63,11 @@ class PublicCategory(BaseModel):
     article_count: int
 
 
+class PublicRegion(BaseModel):
+    slug: str
+    article_count: int
+
+
 class PublicArticlePage(BaseModel):
     items: list[PublicArticle]
     page: int
@@ -76,6 +82,7 @@ class PublicEvent(BaseModel):
     taxonomy: list[str] = Field(default_factory=list)
     latest_published_at: datetime
     article_count: int
+    available_languages: list[str] = Field(default_factory=list)
 
 
 class PublicEventDetail(PublicEvent):
@@ -88,6 +95,7 @@ class PublicEntity(BaseModel):
     kind: str
     latest_published_at: datetime
     article_count: int
+    available_languages: list[str] = Field(default_factory=list)
 
 
 class PublicEntityDetail(PublicEntity):
@@ -129,6 +137,7 @@ async def list_public_articles(
     language: str | None = None,
     category: str | None = None,
     topic: str | None = None,
+    region: str | None = None,
     from_date: datetime | None = None,
     to_date: datetime | None = None,
     page: int = Query(default=1, ge=1),
@@ -139,6 +148,7 @@ async def list_public_articles(
         articles = await _published_articles(session, language)
     category_term = category.casefold() if category else None
     topic_term = topic.casefold() if topic else None
+    region_term = region.casefold() if region else None
     needle = query.casefold().strip() if query else None
     filtered = [
         article
@@ -149,6 +159,7 @@ async def list_public_articles(
             or category_term in {value.casefold() for value in article.taxonomy}
         )
         and (topic_term is None or topic_term in {value.casefold() for value in article.taxonomy})
+        and (region_term is None or region_term in {value.casefold() for value in article.regions})
         and (from_date is None or _utc(article.published_at) >= _utc(from_date))
         and (to_date is None or _utc(article.published_at) <= _utc(to_date))
         and (
@@ -199,6 +210,9 @@ async def get_public_article(
             )
         ).one_or_none()
         if row is None:
+            article = await session.get(SiteArticle, article_id)
+            if article is not None and article.status == "unpublished":
+                raise HTTPException(410, "article has been permanently unpublished")
             raise HTTPException(404, "published article not found")
         article, publication, version = row
         return await _public_article(session, article, publication, version, language)
@@ -271,6 +285,17 @@ async def list_public_categories(request: Request) -> list[PublicCategory]:
     return [
         PublicCategory(slug=slug, article_count=count) for slug, count in sorted(counts.items())
     ]
+
+
+@public_router.get("/regions", response_model=list[PublicRegion])
+async def list_public_regions(request: Request) -> list[PublicRegion]:
+    async with request.app.state.session_factory() as session:
+        articles = await _published_articles(session, None)
+    counts: dict[str, int] = {}
+    for article in articles:
+        for slug in article.regions:
+            counts[slug] = counts.get(slug, 0) + 1
+    return [PublicRegion(slug=slug, article_count=count) for slug, count in sorted(counts.items())]
 
 
 @public_router.get("/languages", response_model=list[PublicLanguage])
@@ -491,6 +516,7 @@ async def _public_article(
         summary=_optional_text(content, "summary"),
         tags=_string_list(content.get("tags")),
         taxonomy=_string_list(payload.get("taxonomy")),
+        regions=_string_list(payload.get("regions")),
         language=language,
         direction=direction,
         available_languages=available,
@@ -558,6 +584,9 @@ def _event_summary(event: SiteEvent, articles: list[PublicArticle]) -> PublicEve
         taxonomy=list(event.taxonomy),
         latest_published_at=max(article.published_at for article in articles),
         article_count=len(articles),
+        available_languages=sorted(
+            {language for article in articles for language in article.available_languages}
+        ),
     )
 
 
@@ -594,6 +623,9 @@ def _entity_summary(entity: SiteEntity, articles: list[PublicArticle]) -> Public
         kind=entity.kind,
         latest_published_at=max(article.published_at for article in articles),
         article_count=len(articles),
+        available_languages=sorted(
+            {language for article in articles for language in article.available_languages}
+        ),
     )
 
 

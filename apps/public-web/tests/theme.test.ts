@@ -2,13 +2,19 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  PUBLIC_THEME_CONTRACT_VERSION,
   defaultPublicTheme,
+  publicThemeManifest,
   publicThemeAttributes,
   publicThemes,
   resolvePublicTheme,
 } from "@/lib/theme";
 
 describe("public design themes", () => {
+  it("publishes a stable manifest for the three supported themes", () => {
+    expect(publicThemeManifest.contractVersion).toBe(PUBLIC_THEME_CONTRACT_VERSION);
+    expect(Object.keys(publicThemeManifest.themes)).toEqual(["editorial", "midnight", "signal"]);
+  });
   it("selects each configured theme and falls back safely", () => {
     expect(publicThemes).toEqual(["editorial", "midnight", "signal"]);
     expect(resolvePublicTheme("midnight")).toBe("midnight");

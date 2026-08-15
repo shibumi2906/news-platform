@@ -3,6 +3,9 @@ import { ArticleCard } from "@/components/article-card";
 import { EmptyState } from "@/components/empty-state";
 import { getPublicArticles, getPublicCategories } from "@/lib/api";
 import { displayCategory } from "@/lib/presentation";
+import { publicMetadata } from "@/lib/public-metadata";
+
+export const metadata = publicMetadata("/", "Signal Desk", "Independent, source-aware reporting from the News Platform.");
 
 export default async function HomePage() {
   const [articles, categories] = await Promise.all([getPublicArticles(), getPublicCategories()]);

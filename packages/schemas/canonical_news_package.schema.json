@@ -208,6 +208,13 @@
       "title": "Package Version",
       "type": "integer"
     },
+    "regions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Regions",
+      "type": "array"
+    },
     "rights": {
       "additionalProperties": true,
       "title": "Rights",

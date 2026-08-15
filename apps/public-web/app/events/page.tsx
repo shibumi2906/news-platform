@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { getPublicEvents, getPublicLanguages } from "@/lib/api";
+import { publicRouteMetadata } from "@/lib/public-metadata";
 
-export const metadata: Metadata = { title: "Events", description: "Published reporting grouped by event." };
+export async function generateMetadata(): Promise<Metadata> {
+  const languages = await getPublicLanguages();
+  return publicRouteMetadata("/events", "Events", "Published reporting grouped by event.", { languages: languages.map((language) => language.code) });
+}
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
   const { lang } = await searchParams;

@@ -104,6 +104,9 @@ main { min-height: 72vh; }
 .article-body { margin: 3rem 0; font-family: var(--display); font-size: 1.22rem; line-height: 1.75; }
 .tag-list { display: flex; flex-wrap: wrap; gap: .5rem; }
 .tag-list span { border-radius: 99px; background: #e5e8dc; padding: .4rem .7rem; }
+.source-attribution { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.source-attribution h2 { font-family: var(--display); }
+.source-attribution ul { padding-left: 1.2rem; overflow-wrap: anywhere; }
 .language-picker { display: grid; gap: .35rem; color: var(--muted); font-size: .8rem; }
 .language-picker select { min-width: 180px; padding: .6rem; border: 1px solid var(--line); background: white; }
 .empty-state { text-align: center; }

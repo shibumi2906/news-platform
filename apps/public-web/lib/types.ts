@@ -9,6 +9,7 @@ export interface PublicArticle {
   summary: string | null;
   tags: string[];
   taxonomy: string[];
+  regions: string[];
   language: string;
   direction: Direction;
   available_languages: string[];
@@ -33,6 +34,7 @@ export interface PublicEvent {
   taxonomy: string[];
   latest_published_at: string;
   article_count: number;
+  available_languages: string[];
 }
 
 export interface PublicEventDetail extends PublicEvent {
@@ -45,6 +47,7 @@ export interface PublicEntity {
   kind: string;
   latest_published_at: string;
   article_count: number;
+  available_languages: string[];
 }
 
 export interface PublicEntityDetail extends PublicEntity {
@@ -52,6 +55,11 @@ export interface PublicEntityDetail extends PublicEntity {
 }
 
 export interface PublicCategory {
+  slug: string;
+  article_count: number;
+}
+
+export interface PublicRegion {
   slug: string;
   article_count: number;
 }
