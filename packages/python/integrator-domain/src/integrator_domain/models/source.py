@@ -3,6 +3,7 @@
 A `Source` is a configured RSS feed. `SourceMaterial` is raw connector
 output persisted before any normalization — one row per `SourceCandidate`.
 """
+# ruff: noqa: E501
 
 from __future__ import annotations
 
@@ -74,3 +75,40 @@ class SourceMaterial(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     raw: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
+
+
+class ParserSnapshot(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "parser_snapshot"
+
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source.id"))
+    url: Mapped[str] = mapped_column(String(2048))
+    kind: Mapped[str] = mapped_column(String(32), default="list")
+    html: Mapped[str] = mapped_column()
+    content_hash: Mapped[str] = mapped_column(String(64))
+
+
+class ParserVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "parser_version"
+    __table_args__ = (UniqueConstraint("source_id", "version", name="uq_parser_version"),)
+
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source.id"))
+    version: Mapped[int] = mapped_column(Integer)
+    adapter_type: Mapped[str] = mapped_column(String(32))
+    rules: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
+    status: Mapped[str] = mapped_column(String(32), default="draft")
+    parent_version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("parser_version.id"), nullable=True)
+    snapshot_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("parser_snapshot.id"), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(1000), default=None)
+    validation_report: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
+    reviewed_by_actor_id: Mapped[str | None] = mapped_column(String(255), default=None)
+
+
+class ParserRepair(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "parser_repair"
+
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source.id"))
+    detected_version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("parser_version.id"), nullable=True)
+    proposed_version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("parser_version.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="detected")
+    reason: Mapped[str] = mapped_column(String(1000))
+    evidence: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)

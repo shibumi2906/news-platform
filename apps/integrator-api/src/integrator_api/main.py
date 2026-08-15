@@ -1,4 +1,5 @@
 from __future__ import annotations
+# ruff: noqa: I001
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -30,6 +31,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from integrator_api.api.ai_admin import router as ai_admin_router
 from integrator_api.api.event_intelligence import router as event_intelligence_router
+from integrator_api.api.parser_lab import router as parser_lab_router
 from integrator_api.api.health import router as health_router
 from integrator_api.api.operations import router as operations_router
 from integrator_api.api.sources import router as sources_router
@@ -125,5 +127,6 @@ def create_app() -> FastAPI:
     app.include_router(sources_router)
     app.include_router(ai_admin_router)
     app.include_router(event_intelligence_router)
+    app.include_router(parser_lab_router)
     app.include_router(operations_router)
     return app

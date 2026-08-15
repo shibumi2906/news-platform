@@ -3,6 +3,7 @@
 """
 
 from __future__ import annotations
+# ruff: noqa: E501,I001
 
 import asyncio
 from uuid import UUID
@@ -21,6 +22,7 @@ from source_worker.celery_app import app, settings
 from source_worker.fetcher import fetch_feed
 from source_worker.html import collect_html_source
 from source_worker.ingestion import ingest_candidates
+from source_worker.parser_platform import SandboxViolation, active_rules, validate_egress_url
 from source_worker.rss import parse_rss_feed
 from source_worker.search import collect_gemini_search_source, collect_google_search_source
 from source_worker.state import record_run
@@ -56,13 +58,24 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
             logger.warning("source_poll_skipped", source_id=str(source_id))
             return {"created": 0, "duplicates": 0}
 
+        if source.adapter_type in {"html", "browser"}:
+            try:
+                validate_egress_url(source.feed_url)
+            except SandboxViolation as exc:
+                await record_run(session_factory, source_id, "failed", 0, f"parser_egress_blocked:{exc}")
+                return {"created": 0, "duplicates": 0}
+            async with session_factory() as parser_session:
+                parser_config = await active_rules(parser_session, source_id, source.config)
+        else:
+            parser_config = source.config
+
         if source.adapter_type == "html":
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 candidates, etag, last_modified, error = await collect_html_source(
                     client,
                     source_id=source_id,
                     list_url=source.feed_url,
-                    config=source.config,
+                    config=parser_config,
                     fetched_at=utc_now(),
                     user_agent=settings.http_user_agent,
                     timeout_seconds=settings.http_timeout_seconds,
@@ -98,7 +111,7 @@ async def _poll_source(source_id: UUID) -> dict[str, int]:
                         browser,
                         source_id=source_id,
                         start_url=source.feed_url,
-                        config=source.config,
+                        config=parser_config,
                         fetched_at=utc_now(),
                         user_agent=settings.http_user_agent,
                     )

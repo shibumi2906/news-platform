@@ -25,7 +25,15 @@ from integrator_domain.models.multilingual import (
 from integrator_domain.models.outbox import OutboxEvent
 from integrator_domain.models.package import CanonicalNewsPackage
 from integrator_domain.models.site_connection import SiteConnection
-from integrator_domain.models.source import Source, SourceMaterial, SourceRun, SourceSnapshot
+from integrator_domain.models.source import (
+    ParserRepair,
+    ParserSnapshot,
+    ParserVersion,
+    Source,
+    SourceMaterial,
+    SourceRun,
+    SourceSnapshot,
+)
 
 __all__ = [
     "CanonicalNewsPackage",
@@ -46,6 +54,9 @@ __all__ = [
     "OutboxEvent",
     "PromptTemplate",
     "PromptVersion",
+    "ParserRepair",
+    "ParserSnapshot",
+    "ParserVersion",
     "SiteConnection",
     "Source",
     "SourceMaterial",
