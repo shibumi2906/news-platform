@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { publicUrl, siteName } from "@/lib/public-metadata";
+import { publicThemeAttributes } from "@/lib/theme";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" dir="ltr">
+    <html lang="en" dir="ltr" {...publicThemeAttributes()}>
       <body>
         <a className="skip-link" href="#main-content">Skip to content</a>
         <header className="site-header">

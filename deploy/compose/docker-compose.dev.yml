@@ -144,12 +144,14 @@ services:
       args:
         NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-Signal Desk}
         NEXT_PUBLIC_WEB_URL: ${NEXT_PUBLIC_WEB_URL:-http://localhost:3000}
+        NEXT_PUBLIC_PORTAL_THEME: ${NEXT_PUBLIC_PORTAL_THEME:-editorial}
     environment:
       HOSTNAME: 0.0.0.0
       SITE_API_URL: http://site-api:8000
       INTEGRATOR_API_URL: http://integrator-api:8000
       NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-Signal Desk}
       NEXT_PUBLIC_WEB_URL: ${NEXT_PUBLIC_WEB_URL:-http://localhost:3000}
+      NEXT_PUBLIC_PORTAL_THEME: ${NEXT_PUBLIC_PORTAL_THEME:-editorial}
       SESSION_COOKIE_SECURE: "false"
     ports:
       - "3000:3000"

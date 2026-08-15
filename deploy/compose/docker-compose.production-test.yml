@@ -21,4 +21,5 @@ services:
   public-web:
     environment:
       NEXT_PUBLIC_WEB_URL: http://localhost:3000
+      NEXT_PUBLIC_PORTAL_THEME: ${NEXT_PUBLIC_PORTAL_THEME:-editorial}
       SESSION_COOKIE_SECURE: "false"
