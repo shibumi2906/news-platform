@@ -1,4 +1,5 @@
 from __future__ import annotations
+# ruff: noqa: E501,I001
 
 from collections.abc import AsyncIterator
 
@@ -169,3 +170,17 @@ async def test_source_url_credentials_are_rejected(client: httpx.AsyncClient) ->
     )
     assert response.status_code == 422
     assert "private-password" not in response.text
+
+
+async def test_quality_admin_gate_canary_rollback_and_audit(client: httpx.AsyncClient) -> None:
+    prompt = await client.post("/api/v1/ai/prompts", json={"operation": "quality-test", "system_prompt": "s", "user_prompt": "u", "output_schema": "draft"})
+    assert prompt.status_code == 201
+    policy = await client.put("/api/v1/ai/quality/policies/quality-test", json={"operation": "quality-test", "minimum_score": .8, "canary_percent": 10, "budget_usd": 1})
+    assert policy.status_code == 200
+    eval_set = await client.post("/api/v1/ai/quality/eval-sets", json={"operation": "quality-test", "version": 1, "cases": [{"input": "x", "expected": "y"}]})
+    assert eval_set.json()["frozen"]
+    failed = await client.post("/api/v1/ai/quality/releases", json={"prompt_version_id": prompt.json()["active_version_id"], "provider": "fake", "model": "v1", "operation": "quality-test", "eval_score": .7})
+    assert failed.json()["status"] == "rejected"
+    canary = await client.post("/api/v1/ai/quality/releases", json={"prompt_version_id": prompt.json()["active_version_id"], "provider": "fake", "model": "v1", "operation": "quality-test", "eval_score": .9})
+    assert canary.json()["status"] == "canary"
+    assert (await client.post(f"/api/v1/ai/quality/releases/{canary.json()['id']}/rollback")).json()["status"] == "rolled_back"

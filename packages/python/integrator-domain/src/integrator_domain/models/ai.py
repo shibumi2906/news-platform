@@ -1,4 +1,5 @@
 """AI Core persistence: configuration, results, telemetry and provenance."""
+# ruff: noqa: E501
 
 from __future__ import annotations
 
@@ -64,6 +65,34 @@ class AIOperationRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     estimated_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class AIEvalSet(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "ai_eval_set"
+    operation: Mapped[str] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer)
+    cases: Mapped[list[dict[str, Any]]] = mapped_column(PortableJSON, default=list)
+    frozen: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class AIQualityPolicy(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "ai_quality_policy"
+    operation: Mapped[str] = mapped_column(String(64), unique=True)
+    minimum_score: Mapped[float] = mapped_column(Float, default=0.8)
+    canary_percent: Mapped[int] = mapped_column(Integer, default=10)
+    budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class AIConfigRelease(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "ai_config_release"
+    prompt_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prompt_version.id"))
+    provider: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), default="candidate")
+    eval_score: Mapped[float | None] = mapped_column(Float, default=None)
+    rollout_percent: Mapped[int] = mapped_column(Integer, default=0)
+    previous_release_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("ai_config_release.id"), nullable=True)
+    audit: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
 
 
 class MaterialRelevance(Base, UUIDPrimaryKeyMixin, TimestampMixin):

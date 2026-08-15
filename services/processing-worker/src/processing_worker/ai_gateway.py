@@ -70,6 +70,7 @@ class AIGateway:
         providers: list[AIProvider],
         *,
         max_attempts_per_provider: int = 2,
+        max_cost_usd: float = 0.0,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         if not providers:
@@ -77,6 +78,7 @@ class AIGateway:
         self._providers = providers
         self._max_attempts = max_attempts_per_provider
         self._sleep = sleep
+        self._max_cost_usd = max_cost_usd
 
     async def complete(self, request: AIRequest) -> GatewayResponse:
         started = perf_counter()
@@ -90,6 +92,8 @@ class AIGateway:
                 attempts += 1
                 try:
                     result = await provider.complete(request)
+                    if self._max_cost_usd and result.estimated_cost_usd > self._max_cost_usd:
+                        raise AIProviderError("budget_exceeded", retryable=False)
                     latency_ms = round((perf_counter() - started) * 1000)
                     logger.info(
                         "ai_call_completed",

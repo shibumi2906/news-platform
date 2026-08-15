@@ -1,4 +1,5 @@
 from __future__ import annotations
+# ruff: noqa
 
 from typing import Any
 from uuid import UUID
@@ -7,14 +8,19 @@ from common.auth import require_permission
 from common.logging import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from integrator_domain.models import (
+    AIConfigRelease,
+    AIOperationRun,
+    AIEvalSet,
+    AIQualityPolicy,
     LanguageConfig,
     PromptTemplate,
     PromptVersion,
     TerminologyEntry,
     Topic,
 )
+from integrator_domain.ai_quality import promote, rollback
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +30,55 @@ router = APIRouter(
     dependencies=[Depends(require_permission("topics:manage"))],
 )
 logger = get_logger(__name__)
+
+
+@router.get("/quality/telemetry")
+async def quality_telemetry(request: Request) -> list[dict[str, Any]]:
+    async with request.app.state.session_factory() as session:
+        rows = await session.execute(select(AIOperationRun.provider, AIOperationRun.model, func.count(), func.avg(AIOperationRun.latency_ms), func.sum(AIOperationRun.prompt_tokens), func.sum(AIOperationRun.completion_tokens), func.sum(AIOperationRun.estimated_cost_usd), func.sum(case((AIOperationRun.status == "failed", 1), else_=0))).group_by(AIOperationRun.provider, AIOperationRun.model))
+        return [{"provider": p, "model": m, "runs": n, "latency_ms": float(latency or 0), "prompt_tokens": tokens_in or 0, "completion_tokens": tokens_out or 0, "estimated_cost_usd": float(cost or 0), "errors": errors or 0} for p, m, n, latency, tokens_in, tokens_out, cost, errors in rows]
+
+
+@router.get("/quality/policies")
+async def list_quality_policies(request: Request) -> list[dict[str, Any]]:
+    async with request.app.state.session_factory() as session:
+        return [{"id": str(row.id), "operation": row.operation, "minimum_score": row.minimum_score, "canary_percent": row.canary_percent, "budget_usd": row.budget_usd} for row in (await session.execute(select(AIQualityPolicy))).scalars()]
+
+
+@router.put("/quality/policies/{operation}")
+async def set_quality_policy(operation: str, payload: QualityPolicyInput, request: Request) -> dict[str, Any]:
+    if operation != payload.operation: raise HTTPException(422, "operation mismatch")
+    async with request.app.state.session_factory() as session, session.begin():
+        row = await session.scalar(select(AIQualityPolicy).where(AIQualityPolicy.operation == operation))
+        if row is None: row = AIQualityPolicy(operation=operation); session.add(row)
+        row.minimum_score, row.canary_percent, row.budget_usd = payload.minimum_score, payload.canary_percent, payload.budget_usd
+        return {"operation": row.operation, "minimum_score": row.minimum_score, "canary_percent": row.canary_percent, "budget_usd": row.budget_usd, "audit": "policy_updated"}
+
+
+@router.post("/quality/eval-sets")
+async def freeze_eval_set(payload: EvalSetInput, request: Request) -> dict[str, Any]:
+    async with request.app.state.session_factory() as session, session.begin():
+        row = AIEvalSet(operation=payload.operation, version=payload.version, cases=payload.cases, frozen=True)
+        session.add(row); await session.flush()
+        return {"id": str(row.id), "operation": row.operation, "version": row.version, "frozen": True}
+
+
+@router.post("/quality/releases")
+async def create_release(payload: ReleaseInput, request: Request) -> dict[str, Any]:
+    async with request.app.state.session_factory() as session, session.begin():
+        if await session.get(PromptVersion, payload.prompt_version_id) is None: raise HTTPException(404, "prompt version not found")
+        row = AIConfigRelease(prompt_version_id=payload.prompt_version_id, provider=payload.provider, model=payload.model, audit={"operation": payload.operation, "action": "created"})
+        session.add(row); await session.flush(); await promote(session, row, payload.eval_score)
+        return {"id": str(row.id), "status": row.status, "rollout_percent": row.rollout_percent, "eval_score": row.eval_score, "audit": row.audit}
+
+
+@router.post("/quality/releases/{release_id}/rollback")
+async def rollback_release(release_id: UUID, request: Request) -> dict[str, Any]:
+    async with request.app.state.session_factory() as session, session.begin():
+        row = await session.get(AIConfigRelease, release_id)
+        if row is None: raise HTTPException(404, "release not found")
+        await rollback(session, row); row.audit = {**row.audit, "action": "rollback"}
+        return {"id": str(row.id), "status": row.status, "audit": row.audit}
 
 
 class CategoryInput(BaseModel):
@@ -64,6 +119,27 @@ class PromptVersionInput(BaseModel):
     system_prompt: str = Field(min_length=1)
     user_prompt: str = Field(min_length=1)
     output_schema: str = Field(min_length=1, max_length=128)
+
+
+class QualityPolicyInput(BaseModel):
+    operation: str = Field(pattern=r"^[a-z][a-z0-9_-]*$")
+    minimum_score: float = Field(ge=0, le=1)
+    canary_percent: int = Field(ge=1, le=100)
+    budget_usd: float = Field(ge=0)
+
+
+class EvalSetInput(BaseModel):
+    operation: str
+    version: int = Field(ge=1)
+    cases: list[dict[str, Any]] = Field(min_length=1)
+
+
+class ReleaseInput(BaseModel):
+    prompt_version_id: UUID
+    provider: str
+    model: str
+    operation: str
+    eval_score: float = Field(ge=0, le=1)
 
 
 class PromptOutput(BaseModel):

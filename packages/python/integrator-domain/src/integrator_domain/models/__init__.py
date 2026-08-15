@@ -1,5 +1,8 @@
 from integrator_domain.models.ai import (
     AIOperationRun,
+    AIConfigRelease,
+    AIEvalSet,
+    AIQualityPolicy,
     DraftProvenance,
     ExtractedEntity,
     ExtractedFact,
@@ -40,6 +43,9 @@ from integrator_domain.models.source import (
 __all__ = [
     "CanonicalNewsPackage",
     "AIOperationRun",
+    "AIConfigRelease",
+    "AIEvalSet",
+    "AIQualityPolicy",
     "Delivery",
     "DeliveryAttempt",
     "Event",
