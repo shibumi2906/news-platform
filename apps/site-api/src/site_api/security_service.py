@@ -30,9 +30,7 @@ from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 logger = get_logger(__name__)
-_DUMMY_PASSWORD_HASH = hash_password(
-    "timing-equalization-only", salt=b"\x00" * 16
-)
+_DUMMY_PASSWORD_HASH = hash_password("timing-equalization-only", salt=b"\x00" * 16)
 
 PERMISSIONS: dict[str, str] = {
     "users:read": "View users and roles",
@@ -46,6 +44,7 @@ PERMISSIONS: dict[str, str] = {
     "distribution:manage": "Manage channels and distribution jobs",
     "sources:manage": "Manage source ingestion",
     "topics:manage": "Manage AI topics and language configuration",
+    "billing:manage": "Manage billing customers, invoices, payments, and reconciliation",
 }
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "Administrator": set(PERMISSIONS),
@@ -152,12 +151,7 @@ async def login(
     ).scalar_one_or_none()
     candidate_hash = user.password_hash if user and user.password_hash else _DUMMY_PASSWORD_HASH
     password_valid = verify_password(password, candidate_hash)
-    if (
-        user is None
-        or not user.is_active
-        or user.password_hash is None
-        or not password_valid
-    ):
+    if user is None or not user.is_active or user.password_hash is None or not password_valid:
         raise PermissionError("invalid credentials")
     if user.mfa_required:
         raise PermissionError("mfa challenge required")

@@ -35,6 +35,8 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from site_api.api.billing import router as billing_router
+from site_api.api.billing import webhook_router as billing_webhook_router
 from site_api.api.dashboard import router as dashboard_router
 from site_api.api.distribution import router as distribution_router
 from site_api.api.editorial import router as editorial_router
@@ -46,6 +48,7 @@ from site_api.api.security import admin_router as security_admin_router
 from site_api.api.security import router as security_router
 from site_api.api.system import build_job_metrics_collector
 from site_api.api.system import router as system_router
+from site_api.billing import BillingError
 from site_api.config import Settings
 from site_api.dashboard import export_due, reconcile
 from site_api.media_generation import FakeImageProvider, MediaGateway
@@ -227,6 +230,15 @@ def create_app() -> FastAPI:
         )
         return JSONResponse(status_code=exc.status_code, content=envelope.model_dump(mode="json"))
 
+    @app.exception_handler(BillingError)
+    async def handle_billing_error(request: Request, exc: BillingError) -> JSONResponse:
+        envelope = ErrorEnvelope(
+            error=ErrorDetail(
+                code=exc.code, message=exc.message, correlation_id=get_correlation_id()
+            )
+        )
+        return JSONResponse(status_code=exc.status_code, content=envelope.model_dump(mode="json"))
+
     @app.exception_handler(RequestValidationError)
     async def handle_request_validation_error(
         request: Request, exc: RequestValidationError
@@ -257,6 +269,8 @@ def create_app() -> FastAPI:
     app.include_router(editorial_router)
     app.include_router(distribution_router)
     app.include_router(dashboard_router)
+    app.include_router(billing_router)
+    app.include_router(billing_webhook_router)
     app.include_router(media_router)
     app.include_router(security_router)
     app.include_router(security_admin_router)

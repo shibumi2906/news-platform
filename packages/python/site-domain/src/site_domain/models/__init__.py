@@ -1,5 +1,12 @@
 from site_domain.models.article_translation import ArticleTranslationVersion
 from site_domain.models.article_version import ArticleSourceLink, ArticleVersion
+from site_domain.models.billing import (
+    BillingAuditEntry,
+    BillingCustomer,
+    BillingInvoice,
+    BillingPayment,
+    BillingWebhookEvent,
+)
 from site_domain.models.correction_notice import CorrectionNotice
 from site_domain.models.dashboard import DashboardExportAttempt, DashboardOutbox
 from site_domain.models.distribution import (
@@ -41,6 +48,11 @@ __all__ = [
     "ArticleVersionEntity",
     "ArticleVersion",
     "ArticleTranslationVersion",
+    "BillingCustomer",
+    "BillingAuditEntry",
+    "BillingInvoice",
+    "BillingPayment",
+    "BillingWebhookEvent",
     "AdminSession",
     "AdminUser",
     "AuditLog",
