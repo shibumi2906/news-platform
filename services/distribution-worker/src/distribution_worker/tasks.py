@@ -7,8 +7,6 @@ from common.db import create_engine, create_session_factory
 from common.logging import configure_logging, get_logger
 
 from distribution_worker.adapters import (
-    CONTRACT_ONLY_KINDS,
-    ContractOnlyAdapter,
     DistributionAdapter,
     TelegramAdapter,
 )
@@ -31,7 +29,6 @@ async def _run() -> dict[str, int]:
         async with httpx.AsyncClient(timeout=settings.http_timeout_seconds) as client:
             adapters: dict[str, DistributionAdapter] = {
                 "telegram": TelegramAdapter(client, base_url=settings.telegram_base_url),
-                **{kind: ContractOnlyAdapter(kind) for kind in CONTRACT_ONLY_KINDS},
             }
             stats = await process_due_jobs(
                 session_factory,

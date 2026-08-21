@@ -91,23 +91,3 @@ class TelegramAdapter:
             external_url=None,
             provider_request_id=response.headers.get("x-request-id"),
         )
-
-
-class ContractOnlyAdapter:
-    """Explicit contract placeholder for social networks not enabled yet."""
-
-    def __init__(self, kind: str) -> None:
-        self.kind = kind
-
-    async def publish(
-        self,
-        *,
-        payload: dict[str, Any],
-        config: dict[str, Any],
-        credential_ref: str | None,
-        idempotency_key: str,
-    ) -> DeliveryResult:
-        raise DistributionError(f"{self.kind}_adapter_not_configured", retryable=False)
-
-
-CONTRACT_ONLY_KINDS = frozenset({"facebook", "instagram", "tiktok", "x", "youtube"})

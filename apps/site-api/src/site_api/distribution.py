@@ -23,7 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
-SUPPORTED_CHANNELS = frozenset({"telegram", "facebook", "instagram", "tiktok", "x", "youtube"})
+# A channel is only exposed to operators once its worker adapter is a real,
+# supported integration.  The domain protocol remains provider-neutral, so a
+# future adapter can be added without changing the scheduling model.
+SUPPORTED_CHANNELS = frozenset({"telegram"})
 SENSITIVE_CONFIG_FRAGMENTS = ("token", "secret", "password", "api_key", "credential")
 
 

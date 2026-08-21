@@ -151,3 +151,20 @@ async def test_media_and_distribution_negative_validation(client: httpx.AsyncCli
         },
     )
     assert unsupported_update.status_code == 422
+
+
+async def test_only_real_distribution_adapters_can_be_configured(
+    client: httpx.AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/admin/distribution/channels",
+        headers={"X-Admin-Token": "test-token"},
+        json={
+            "name": "Unwired social account",
+            "kind": "facebook",
+            "account_key": "main",
+            "config": {},
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "unsupported distribution channel kind"
