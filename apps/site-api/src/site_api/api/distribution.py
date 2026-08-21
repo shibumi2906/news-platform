@@ -16,7 +16,7 @@ from site_api.distribution import (
     SUPPORTED_CHANNELS,
     create_channel,
     schedule_distribution,
-    validate_channel_config,
+    validate_provider_config,
 )
 
 router = APIRouter(
@@ -95,10 +95,8 @@ async def update_channel(
             raise HTTPException(404, "distribution channel not found")
         if payload.kind not in SUPPORTED_CHANNELS:
             raise HTTPException(422, "unsupported distribution channel kind")
-        if payload.kind == "telegram" and not isinstance(payload.config.get("chat_id"), str):
-            raise HTTPException(422, "telegram channel requires config.chat_id")
         try:
-            validate_channel_config(payload.config)
+            validate_provider_config(payload.kind, payload.config)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         item.name = payload.name

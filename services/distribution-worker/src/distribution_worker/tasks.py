@@ -8,7 +8,12 @@ from common.logging import configure_logging, get_logger
 
 from distribution_worker.adapters import (
     DistributionAdapter,
+    FacebookAdapter,
+    InstagramAdapter,
     TelegramAdapter,
+    TikTokAdapter,
+    XAdapter,
+    YouTubeAdapter,
 )
 from distribution_worker.celery_app import app, settings
 from distribution_worker.delivery import process_due_jobs
@@ -29,6 +34,11 @@ async def _run() -> dict[str, int]:
         async with httpx.AsyncClient(timeout=settings.http_timeout_seconds) as client:
             adapters: dict[str, DistributionAdapter] = {
                 "telegram": TelegramAdapter(client, base_url=settings.telegram_base_url),
+                "facebook": FacebookAdapter(client, base_url=settings.facebook_base_url),
+                "instagram": InstagramAdapter(client, base_url=settings.facebook_base_url),
+                "tiktok": TikTokAdapter(client, base_url=settings.tiktok_base_url),
+                "x": XAdapter(client, base_url=settings.x_base_url),
+                "youtube": YouTubeAdapter(client, base_url=settings.youtube_base_url),
             }
             stats = await process_due_jobs(
                 session_factory,

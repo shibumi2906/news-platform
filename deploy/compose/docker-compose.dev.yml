@@ -324,7 +324,16 @@ services:
       DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-site:5432/news_platform_site
       REDIS_URL: redis://redis:6379/0
       DISTRIBUTION_SECRET_DEV_TELEGRAM: ${TELEGRAM_BOT_TOKEN:-}
+      DISTRIBUTION_SECRET_FACEBOOK: ${FACEBOOK_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_INSTAGRAM: ${INSTAGRAM_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_TIKTOK: ${TIKTOK_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_X: ${X_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_YOUTUBE: ${YOUTUBE_ACCESS_TOKEN:-}
       TELEGRAM_BASE_URL: ${TELEGRAM_BASE_URL:-https://api.telegram.org}
+      FACEBOOK_BASE_URL: ${FACEBOOK_BASE_URL:-https://graph.facebook.com/v22.0}
+      TIKTOK_BASE_URL: ${TIKTOK_BASE_URL:-https://open.tiktokapis.com}
+      X_BASE_URL: ${X_BASE_URL:-https://api.x.com}
+      YOUTUBE_BASE_URL: ${YOUTUBE_BASE_URL:-https://www.googleapis.com}
     depends_on:
       postgres-site:
         condition: service_healthy
@@ -351,7 +360,16 @@ services:
       DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-site:5432/news_platform_site
       REDIS_URL: redis://redis:6379/0
       DISTRIBUTION_SECRET_DEV_TELEGRAM: ${TELEGRAM_BOT_TOKEN:-}
+      DISTRIBUTION_SECRET_FACEBOOK: ${FACEBOOK_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_INSTAGRAM: ${INSTAGRAM_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_TIKTOK: ${TIKTOK_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_X: ${X_ACCESS_TOKEN:-}
+      DISTRIBUTION_SECRET_YOUTUBE: ${YOUTUBE_ACCESS_TOKEN:-}
       TELEGRAM_BASE_URL: ${TELEGRAM_BASE_URL:-https://api.telegram.org}
+      FACEBOOK_BASE_URL: ${FACEBOOK_BASE_URL:-https://graph.facebook.com/v22.0}
+      TIKTOK_BASE_URL: ${TIKTOK_BASE_URL:-https://open.tiktokapis.com}
+      X_BASE_URL: ${X_BASE_URL:-https://api.x.com}
+      YOUTUBE_BASE_URL: ${YOUTUBE_BASE_URL:-https://www.googleapis.com}
     depends_on:
       postgres-site:
         condition: service_healthy

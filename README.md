@@ -23,9 +23,10 @@ PostgreSQL retains metadata, rights, provenance, article/translation/event
 links, generation telemetry, meme versions, and video storyboards. Image
 generation is provider-neutral with a deterministic fake provider for tests.
 Distribution uses immutable publication versions, scheduling, idempotency,
-audited attempts, exponential retry and DLQ states; Telegram is the first
-working adapter and Facebook, Instagram, TikTok, X, and YouTube expose
-contract-only adapters. Production hardening adds database-backed users, RBAC,
+audited attempts, exponential retry and DLQ states. Telegram, Facebook,
+Instagram, TikTok, X, and YouTube use provider-specific HTTP adapters with
+capability checks; OAuth credentials are configured only through server-side
+environment references. Production hardening adds database-backed users, RBAC,
 rotatable signed admin sessions, CSRF protection, OIDC/MFA extension contracts,
 append-only audit records, metrics and W3C trace context, unified jobs with
 leases and manual DLQ replay, hardened health checks, production Compose,

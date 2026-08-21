@@ -153,7 +153,7 @@ async def test_media_and_distribution_negative_validation(client: httpx.AsyncCli
     assert unsupported_update.status_code == 422
 
 
-async def test_only_real_distribution_adapters_can_be_configured(
+async def test_provider_requires_its_real_configuration(
     client: httpx.AsyncClient,
 ) -> None:
     response = await client.post(
@@ -167,4 +167,4 @@ async def test_only_real_distribution_adapters_can_be_configured(
         },
     )
     assert response.status_code == 422
-    assert response.json()["detail"] == "unsupported distribution channel kind"
+    assert response.json()["detail"] == "channel config requires: page_id"

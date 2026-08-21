@@ -11,6 +11,12 @@ class Settings(BaseAppSettings):
     http_timeout_seconds: float = Field(default=10, alias="DISTRIBUTION_HTTP_TIMEOUT_SECONDS")
     retry_base_seconds: int = Field(default=30, alias="DISTRIBUTION_RETRY_BASE_SECONDS")
     telegram_base_url: str = Field(default="https://api.telegram.org", alias="TELEGRAM_BASE_URL")
+    facebook_base_url: str = Field(
+        default="https://graph.facebook.com/v22.0", alias="FACEBOOK_BASE_URL"
+    )
+    tiktok_base_url: str = Field(default="https://open.tiktokapis.com", alias="TIKTOK_BASE_URL")
+    x_base_url: str = Field(default="https://api.x.com", alias="X_BASE_URL")
+    youtube_base_url: str = Field(default="https://www.googleapis.com", alias="YOUTUBE_BASE_URL")
 
     @classmethod
     def from_env(cls) -> Settings:

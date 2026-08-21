@@ -30,7 +30,10 @@ SECRET = "s3cret"
 def _build_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     monkeypatch.setenv("INSTANCE_ID", "22222222-2222-2222-2222-222222222222")
     monkeypatch.setenv("INSTANCE_TYPE", "site")
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/db")
+    # TestClient enters the application lifespan before this test replaces its
+    # session factory.  Keep that provisional engine local so the security
+    # bootstrap never waits on an unavailable PostgreSQL TCP connection.
+    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     return create_app()
 
 
