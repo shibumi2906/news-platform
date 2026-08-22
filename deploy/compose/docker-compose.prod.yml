@@ -67,12 +67,12 @@ services:
   processing-worker:
     environment:
       <<: *integrator-production
-      AI_PROVIDERS: ${AI_PROVIDERS:-fake}
+      AI_PROVIDERS: ${AI_PROVIDERS:?set AI_PROVIDERS}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   processing-worker-beat:
     environment:
       <<: *integrator-production
-      AI_PROVIDERS: ${AI_PROVIDERS:-fake}
+      AI_PROVIDERS: ${AI_PROVIDERS:?set AI_PROVIDERS}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   delivery-worker:
     environment: *integrator-production

@@ -32,6 +32,13 @@ foreach ($origin in [Environment]::GetEnvironmentVariable("WEB_ORIGIN").Split(",
     throw "WEB_ORIGIN must contain absolute HTTPS origins"
   }
 }
+$aiProviders = [Environment]::GetEnvironmentVariable("AI_PROVIDERS")
+if ([string]::IsNullOrWhiteSpace($aiProviders) -or $aiProviders.Split(",") -contains "fake") {
+  throw "AI_PROVIDERS must name production providers and must not include fake"
+}
+if ($aiProviders.Split(",") -contains "openai" -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("OPENAI_API_KEY"))) {
+  throw "OPENAI_API_KEY is required when AI_PROVIDERS includes openai"
+}
 $bootstrapUsername = [Environment]::GetEnvironmentVariable("ADMIN_BOOTSTRAP_USERNAME")
 $bootstrapPassword = [Environment]::GetEnvironmentVariable("ADMIN_BOOTSTRAP_PASSWORD")
 if ([string]::IsNullOrWhiteSpace($bootstrapUsername) -ne [string]::IsNullOrWhiteSpace($bootstrapPassword)) {

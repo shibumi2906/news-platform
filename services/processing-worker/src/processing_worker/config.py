@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from common.config import BaseAppSettings, InstanceType
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 
 
 class Settings(BaseAppSettings):
@@ -24,6 +24,18 @@ class Settings(BaseAppSettings):
     openai_output_cost_per_million: float = Field(
         default=0.0, alias="OPENAI_OUTPUT_COST_PER_MILLION"
     )
+
+    @model_validator(mode="after")
+    def validate_production_ai(self) -> Settings:
+        providers = {item.strip() for item in self.ai_providers.split(",") if item.strip()}
+        if self.app_env.lower() in {"production", "staging"}:
+            if not providers or providers == {"fake"}:
+                raise ValueError("production AI_PROVIDERS must name a configured non-fake provider")
+            if "openai" in providers and self.openai_api_key is None:
+                raise ValueError(
+                    "OPENAI_API_KEY is required when production AI_PROVIDERS includes openai"
+                )
+        return self
 
     @classmethod
     def from_env(cls) -> Settings:

@@ -40,6 +40,25 @@ operator can inspect and explicitly replay. Provider-side idempotency remains th
 final protection for the ambiguous crash window after an external success and
 before the local commit.
 
+## External-provider production boundary
+
+`AI_PROVIDERS` is mandatory in staging and production and may not contain the
+development-only `fake` adapter.  The current installed production adapter is
+`openai`; selecting it requires `OPENAI_API_KEY`.  Additional adapters remain a
+model/provider policy decision (OD-07).  Payment providers remain unconfigured
+until OD-09 specifies provider, legal entity/country, currencies, methods,
+webhook endpoint and capture/refund policy.  Distribution channels are enabled
+only when their channel-specific secret reference resolves in the worker
+environment; Telegram, Facebook, Instagram, TikTok, X and YouTube additionally
+require their respective OAuth/app-review and public media/callback setup.
+
+Compose exposes no database, Redis, MinIO or API port publicly in the production
+overlay.  A reverse proxy is therefore the TLS-termination and routing boundary:
+it must set forwarded headers, enforce an HTTPS canonical host, request-body
+limits and security headers, and route only Public Web/API/webhook paths. Caddy
+is the documented recommendation pending OD-02; this repository intentionally
+does not choose a proxy implementation.
+
 ## Installation and updates
 
 Validate secrets without printing them, then use the production overlay:
