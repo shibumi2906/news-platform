@@ -27,6 +27,7 @@ services:
     environment:
       WEB_DOMAIN: ${WEB_DOMAIN:?set WEB_DOMAIN}
       SITE_API_DOMAIN: ${SITE_API_DOMAIN:?set SITE_API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
     ports: ["80:80", "443:443"]
     volumes:
       - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
@@ -107,8 +108,7 @@ services:
       NEXT_PUBLIC_WEB_URL: ${WEB_ORIGIN:?set WEB_ORIGIN}
       NEXT_PUBLIC_PORTAL_THEME: ${NEXT_PUBLIC_PORTAL_THEME:-editorial}
       SESSION_COOKIE_SECURE: "true"
-    ports: !override
-      - "127.0.0.1:3000:3000"
+    ports: !reset []
 
 volumes:
   caddy-data:
