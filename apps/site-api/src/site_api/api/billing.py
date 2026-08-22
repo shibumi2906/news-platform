@@ -67,6 +67,12 @@ async def customer(payload: CustomerIn, request: Request) -> dict[str, Any]:
     return out(x)
 
 
+@router.get("/invoices", response_model=list[dict[str, Any]])
+async def invoices(request: Request) -> list[dict[str, Any]]:
+    async with request.app.state.session_factory() as session:
+        return [out(row) for row in await service(request, session).repo.invoices()]
+
+
 @router.post("/invoices", status_code=201)
 async def invoice(payload: InvoiceIn, request: Request) -> dict[str, Any]:
     x, _ = await run(

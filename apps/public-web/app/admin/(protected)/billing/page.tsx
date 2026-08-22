@@ -1,0 +1,3 @@
+import { getAdminSite } from "@/lib/api";
+interface Invoice { id: string; status: string; amount_minor: number; currency: string; }
+export default async function BillingPage() { const invoices = await getAdminSite<Invoice[]>("/api/v1/admin/billing/invoices"); return <><header className="admin-heading"><div><p className="kicker">Commercial</p><h1>Billing</h1></div><span>{invoices.length} invoices</span></header><section className="admin-panel">{invoices.length ? invoices.map((x) => <p key={x.id}>{x.id.slice(0, 8)} · {x.status} · {x.amount_minor} {x.currency}</p>) : <p>No invoices yet.</p>}</section></>; }

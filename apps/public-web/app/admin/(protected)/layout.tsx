@@ -9,6 +9,7 @@ const links = [
   ["Incoming", "/admin/incoming", "articles:read"],
   ["Articles", "/admin/articles", "articles:read"], ["Media", "/admin/media", "media:manage"],
   ["Distribution", "/admin/distribution", "distribution:manage"],
+  ["Billing", "/admin/billing", "billing:manage"], ["Advertising", "/admin/advertising", "advertising:manage"],
   ["AI telemetry", "/admin/telemetry", "system:read"],
   ["Users & roles", "/admin/security", "users:read"], ["Audit log", "/admin/audit", "audit:read"],
   ["Jobs & DLQ", "/admin/jobs", "jobs:manage"], ["System health", "/admin/system", "system:read"],
