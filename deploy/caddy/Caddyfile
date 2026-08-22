@@ -1,0 +1,17 @@
+{
+  email {$ACME_EMAIL}
+}
+{$WEB_DOMAIN} {
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    X-Frame-Options DENY
+  }
+  reverse_proxy public-web:3000
+}
+{$SITE_API_DOMAIN} {
+  request_body { max_size 12MB }
+  reverse_proxy site-api:8000
+}

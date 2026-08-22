@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from urllib.parse import urlparse
+from uuid import UUID
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -57,6 +58,10 @@ class BaseAppSettings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> BaseAppSettings:
+        try:
+            UUID(self.instance_id)
+        except ValueError as exc:
+            raise ValueError("INSTANCE_ID must be a UUID") from exc
         if self.app_env.lower() not in {"production", "staging"}:
             return self
         unsafe = ("change-me", "localhost")

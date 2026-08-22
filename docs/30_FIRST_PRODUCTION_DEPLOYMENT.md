@@ -1,9 +1,11 @@
 # First production deployment checklist
 
 This is the practical profile for one independent Site installation.  The
-`INSTANCE_ID` is the tenant/site boundary: generate one UUID for the Site and a
-different UUID for the Integrator. There is no shared cross-installation tenant
-bootstrap table.
+`INTEGRATOR_INSTANCE_ID` and `SITE_INSTANCE_ID` are persistent installation
+identities: generate different UUIDs once and retain them across every redeploy.
+Changing either creates a logically different installation and breaks signed
+inter-service identity/audit continuity. There is no shared cross-installation
+tenant bootstrap table.
 
 ## Required configuration
 
@@ -12,7 +14,7 @@ bootstrap table.
 | Database | `POSTGRES_INTEGRATOR_PASSWORD`, `POSTGRES_SITE_PASSWORD` | Compose/migrations/APIs | yes | deployment validation fails |
 | Queue | `REDIS_PASSWORD` | APIs/workers | yes | readiness fails |
 | Storage | `MINIO_ROOT_*` or `S3_*`, `S3_BUCKET` | Site media | yes | Site readiness fails on bucket access |
-| Edge | `API_ALLOWED_HOSTS`, `WEB_ORIGIN`, `NEXT_PUBLIC_WEB_URL` | APIs/web | yes | validation/startup rejects unsafe config |
+| Edge | `API_ALLOWED_HOSTS`, `WEB_ORIGIN`, `WEB_DOMAIN`, `SITE_API_DOMAIN`, `ACME_EMAIL` | APIs/Caddy/web | yes | validation or proxy startup fails |
 | Admin | `ADMIN_API_TOKEN`, `ADMIN_SESSION_KEYS` | both APIs | yes | production startup rejects unsafe/missing values |
 | First admin | `ADMIN_BOOTSTRAP_USERNAME`, `ADMIN_BOOTSTRAP_PASSWORD` | Site API | optional pair | no user is seeded; set both only for first start |
 | AI | `AI_PROVIDERS`, provider key/model | processing workers | yes | production worker rejects fake/unconfigured provider |
@@ -26,7 +28,7 @@ for it.
 ## Deployment sequence
 
 1. Choose DNS names, create PostgreSQL databases/users, Redis, and S3/MinIO
-   bucket/credentials. Generate separate Integrator/Site instance UUIDs.
+   bucket/credentials. Generate and persist separate Integrator/Site UUIDs.
 2. Configure reverse proxy/TLS: HTTPS canonical host, forwarded headers,
    request size limits, security headers, and routes for Web, APIs and payment
    webhooks. Caddy is recommended pending OD-02.
@@ -35,8 +37,8 @@ for it.
 4. Start with `./scripts/deploy.ps1 -Action install`. Migrations run before APIs.
 5. First Site startup seeds the admin only when both `ADMIN_BOOTSTRAP_*` values
    are set. Log in, create roles/users, then remove both bootstrap variables.
-6. Configure source connections, AI provider, optional social channels, payment
-   provider after OD-09, and optional dashboard export.
+6. Configure source connections, AI provider, optional social channels and
+   optional dashboard export. Payments are not part of the first deployment.
 7. Run `./scripts/smoke-production.ps1 -IntegratorUrl https://integrator.example.com -SiteApiUrl https://api.example.com -WebUrl https://www.example.com -AdminApiToken <service-token>`.
 
 Application rollback uses immutable image overrides with `deploy.ps1 -Action

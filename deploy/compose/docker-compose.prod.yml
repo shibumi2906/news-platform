@@ -2,6 +2,8 @@ name: news-platform-prod
 
 x-integrator-production: &integrator-production
   APP_ENV: production
+  INSTANCE_ID: ${INTEGRATOR_INSTANCE_ID:?set INTEGRATOR_INSTANCE_ID}
+  INSTANCE_TYPE: integrator
   DATABASE_URL: postgresql+asyncpg://news_platform:${POSTGRES_INTEGRATOR_PASSWORD:?set POSTGRES_INTEGRATOR_PASSWORD}@postgres-integrator:5432/news_platform_integrator
   REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@redis:6379/0
   ALLOWED_HOSTS: ${API_ALLOWED_HOSTS:?set API_ALLOWED_HOSTS}
@@ -10,6 +12,8 @@ x-integrator-production: &integrator-production
 
 x-site-production: &site-production
   APP_ENV: production
+  INSTANCE_ID: ${SITE_INSTANCE_ID:?set SITE_INSTANCE_ID}
+  INSTANCE_TYPE: site
   DATABASE_URL: postgresql+asyncpg://news_platform:${POSTGRES_SITE_PASSWORD:?set POSTGRES_SITE_PASSWORD}@postgres-site:5432/news_platform_site
   REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@redis:6379/0
   ALLOWED_HOSTS: ${API_ALLOWED_HOSTS:?set API_ALLOWED_HOSTS}
@@ -17,6 +21,22 @@ x-site-production: &site-production
   READINESS_REQUIRE_REDIS: "true"
 
 services:
+  reverse-proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:?set WEB_DOMAIN}
+      SITE_API_DOMAIN: ${SITE_API_DOMAIN:?set SITE_API_DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      public-web:
+        condition: service_healthy
+      site-api:
+        condition: service_healthy
   postgres-integrator:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_INTEGRATOR_PASSWORD:?set POSTGRES_INTEGRATOR_PASSWORD}
@@ -89,3 +109,7 @@ services:
       SESSION_COOKIE_SECURE: "true"
     ports: !override
       - "127.0.0.1:3000:3000"
+
+volumes:
+  caddy-data:
+  caddy-config:
