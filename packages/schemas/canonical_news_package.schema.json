@@ -1,0 +1,220 @@
+{
+  "$defs": {
+    "PackageConfidence": {
+      "properties": {
+        "overall": {
+          "default": 1.0,
+          "title": "Overall",
+          "type": "number"
+        }
+      },
+      "title": "PackageConfidence",
+      "type": "object"
+    },
+    "PackageContent": {
+      "properties": {
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "canonical_url": {
+          "title": "Canonical Url",
+          "type": "string"
+        },
+        "excerpt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Excerpt"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "canonical_url",
+        "language"
+      ],
+      "title": "PackageContent",
+      "type": "object"
+    },
+    "PackageSourceRef": {
+      "properties": {
+        "external_id": {
+          "title": "External Id",
+          "type": "string"
+        },
+        "fetched_at": {
+          "format": "date-time",
+          "title": "Fetched At",
+          "type": "string"
+        },
+        "published_at": {
+          "format": "date-time",
+          "title": "Published At",
+          "type": "string"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_material_id": {
+          "format": "uuid",
+          "title": "Source Material Id",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_material_id",
+        "external_id",
+        "url",
+        "published_at",
+        "fetched_at"
+      ],
+      "title": "PackageSourceRef",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "confidence": {
+      "$ref": "#/$defs/PackageConfidence"
+    },
+    "content": {
+      "$ref": "#/$defs/PackageContent"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "entities": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_stage": {
+      "default": "reported",
+      "title": "Event Stage",
+      "type": "string"
+    },
+    "facts": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Facts",
+      "type": "array"
+    },
+    "instance_id": {
+      "format": "uuid",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "language_versions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PackageContent"
+      },
+      "title": "Language Versions",
+      "type": "object"
+    },
+    "media": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Media",
+      "type": "array"
+    },
+    "package_id": {
+      "format": "uuid",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "package_version": {
+      "title": "Package Version",
+      "type": "integer"
+    },
+    "rights": {
+      "additionalProperties": true,
+      "title": "Rights",
+      "type": "object"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/PackageSourceRef"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "taxonomy": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Taxonomy",
+      "type": "array"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "package_id",
+    "package_version",
+    "instance_id",
+    "event_id",
+    "content",
+    "sources",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "CanonicalNewsPackageEnvelope",
+  "type": "object"
+}

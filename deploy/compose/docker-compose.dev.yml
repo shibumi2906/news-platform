@@ -1,0 +1,215 @@
+name: news-platform-dev
+
+services:
+  postgres-integrator:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: news_platform
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: news_platform_integrator
+    volumes:
+      - postgres-integrator-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U news_platform -d news_platform_integrator"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres-site:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: news_platform
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: news_platform_site
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-site-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U news_platform -d news_platform_site"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: change-me
+      MINIO_ROOT_PASSWORD: change-me
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  integrator-api:
+    build:
+      context: ../..
+      dockerfile: apps/integrator-api/Dockerfile
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000001
+      INSTANCE_TYPE: integrator
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  site-api:
+    build:
+      context: ../..
+      dockerfile: apps/site-api/Dockerfile
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000002
+      INSTANCE_TYPE: site
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-site:5432/news_platform_site
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres-site:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  source-worker:
+    build:
+      context: ../..
+      dockerfile: services/source-worker/Dockerfile
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000001
+      INSTANCE_TYPE: integrator
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  source-worker-beat:
+    build:
+      context: ../..
+      dockerfile: services/source-worker/Dockerfile
+    command: ["celery", "-A", "source_worker.celery_app", "beat", "--loglevel=info"]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000001
+      INSTANCE_TYPE: integrator
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  processing-worker:
+    build:
+      context: ../..
+      dockerfile: services/processing-worker/Dockerfile
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000001
+      INSTANCE_TYPE: integrator
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  processing-worker-beat:
+    build:
+      context: ../..
+      dockerfile: services/processing-worker/Dockerfile
+    command: ["celery", "-A", "processing_worker.celery_app", "beat", "--loglevel=info"]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000001
+      INSTANCE_TYPE: integrator
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  delivery-worker:
+    build:
+      context: ../..
+      dockerfile: services/delivery-worker/Dockerfile
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000001
+      INSTANCE_TYPE: integrator
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  delivery-worker-beat:
+    build:
+      context: ../..
+      dockerfile: services/delivery-worker/Dockerfile
+    command: ["celery", "-A", "delivery_worker.celery_app", "beat", "--loglevel=info"]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    environment:
+      APP_ENV: development
+      INSTANCE_ID: 00000000-0000-0000-0000-000000000001
+      INSTANCE_TYPE: integrator
+      DATABASE_URL: postgresql+asyncpg://news_platform:change-me@postgres-integrator:5432/news_platform_integrator
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres-integrator:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-integrator-data:
+  postgres-site-data:
+  minio-data:

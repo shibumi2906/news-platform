@@ -1,0 +1,39 @@
+"""Site Ingestion API error taxonomy (docs/14_PUBLIC_AND_INTERNAL_API.md §2, §5).
+
+Each subclass is caught by the `DomainError` handler in `site_api.main` and
+rendered as the shared `ErrorEnvelope` shape.
+"""
+
+from __future__ import annotations
+
+from common.errors import DomainError
+
+
+class InvalidConnectionIdError(DomainError):
+    code = "invalid_connection_id"
+    status_code = 400
+
+
+class ConnectionNotFoundError(DomainError):
+    code = "connection_not_found"
+    status_code = 404
+
+
+class ReplayWindowExceededError(DomainError):
+    code = "replay_window_exceeded"
+    status_code = 401
+
+
+class InvalidSignatureError(DomainError):
+    code = "invalid_signature"
+    status_code = 401
+
+
+class IdempotencyConflictError(DomainError):
+    code = "idempotency_conflict"
+    status_code = 409
+
+
+class PayloadValidationError(DomainError):
+    code = "validation_error"
+    status_code = 422

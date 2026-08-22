@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Example Newswire</title>
+    <link>https://news.example.com/</link>
+    <description>Example fixture feed</description>
+    <language>en</language>
+    <item>
+      <title>First headline</title>
+      <link>https://news.example.com/articles/first-headline?utm_source=feed</link>
+      <guid isPermaLink="false">urn:example:first-headline</guid>
+      <pubDate>Mon, 03 Aug 2026 09:00:00 GMT</pubDate>
+      <author>jane@example.com (Jane Reporter)</author>
+      <description>Short summary of the first headline.</description>
+      <content:encoded><![CDATA[<p>Full body of the first headline.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Second headline, no guid</title>
+      <link>https://news.example.com/articles/second-headline</link>
+      <pubDate>Tue, 04 Aug 2026 10:30:00 GMT</pubDate>
+      <description>Short summary of the second headline.</description>
+    </item>
+    <item>
+      <title>Malformed entry without a link</title>
+      <description>This entry has no link and must be skipped.</description>
+    </item>
+  </channel>
+</rss>
