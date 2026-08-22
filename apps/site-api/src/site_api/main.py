@@ -35,6 +35,9 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from site_api.advertising import AdvertisingError
+from site_api.api.advertising import admin_router as advertising_router
+from site_api.api.advertising import public_router as advertising_public_router
 from site_api.api.billing import router as billing_router
 from site_api.api.billing import webhook_router as billing_webhook_router
 from site_api.api.dashboard import router as dashboard_router
@@ -239,6 +242,15 @@ def create_app() -> FastAPI:
         )
         return JSONResponse(status_code=exc.status_code, content=envelope.model_dump(mode="json"))
 
+    @app.exception_handler(AdvertisingError)
+    async def handle_advertising_error(request: Request, exc: AdvertisingError) -> JSONResponse:
+        envelope = ErrorEnvelope(
+            error=ErrorDetail(
+                code=exc.code, message=exc.message, correlation_id=get_correlation_id()
+            )
+        )
+        return JSONResponse(status_code=exc.status_code, content=envelope.model_dump(mode="json"))
+
     @app.exception_handler(RequestValidationError)
     async def handle_request_validation_error(
         request: Request, exc: RequestValidationError
@@ -271,6 +283,8 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router)
     app.include_router(billing_router)
     app.include_router(billing_webhook_router)
+    app.include_router(advertising_router)
+    app.include_router(advertising_public_router)
     app.include_router(media_router)
     app.include_router(security_router)
     app.include_router(security_admin_router)

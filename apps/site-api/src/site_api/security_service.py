@@ -45,6 +45,7 @@ PERMISSIONS: dict[str, str] = {
     "sources:manage": "Manage source ingestion",
     "topics:manage": "Manage AI topics and language configuration",
     "billing:manage": "Manage billing customers, invoices, payments, and reconciliation",
+    "advertising:manage": "Manage advertisers, campaigns, creatives, and delivery reports",
 }
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "Administrator": set(PERMISSIONS),

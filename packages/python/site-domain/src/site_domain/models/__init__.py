@@ -1,3 +1,10 @@
+from site_domain.models.advertising import (
+    AdCampaign,
+    AdCreative,
+    AdDeliveryEvent,
+    AdPlacement,
+    Advertiser,
+)
 from site_domain.models.article_translation import ArticleTranslationVersion
 from site_domain.models.article_version import ArticleSourceLink, ArticleVersion
 from site_domain.models.billing import (
@@ -48,6 +55,11 @@ __all__ = [
     "ArticleVersionEntity",
     "ArticleVersion",
     "ArticleTranslationVersion",
+    "AdCampaign",
+    "AdCreative",
+    "AdDeliveryEvent",
+    "AdPlacement",
+    "Advertiser",
     "BillingCustomer",
     "BillingAuditEntry",
     "BillingInvoice",
