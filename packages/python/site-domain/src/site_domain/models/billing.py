@@ -46,7 +46,7 @@ class BillingInvoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ),
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(index=True)
-    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("billing_customer.id"), index=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("billing_customer.id"))
     currency: Mapped[str] = mapped_column(String(3))
     amount_minor: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(32), default="draft")
@@ -68,7 +68,7 @@ class BillingPayment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ),
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(index=True)
-    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("billing_invoice.id"), index=True)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("billing_invoice.id"))
     amount_minor: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3))
     status: Mapped[str] = mapped_column(String(32), default="pending")
@@ -93,9 +93,9 @@ class BillingWebhookEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class BillingAuditEntry(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "billing_audit_entry"
-    tenant_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column()
     aggregate_type: Mapped[str] = mapped_column(String(32))
-    aggregate_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    aggregate_id: Mapped[uuid.UUID] = mapped_column()
     action: Mapped[str] = mapped_column(String(64))
     details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
