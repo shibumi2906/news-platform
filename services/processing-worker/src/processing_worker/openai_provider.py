@@ -10,6 +10,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from processing_worker.ai_gateway import AIProviderError, AIRequest, ProviderResponse
+from processing_worker.relevance import relevance_system_prompt
 from processing_worker.schemas import (
     DraftOutput,
     ExtractionOutput,
@@ -59,7 +60,11 @@ class OpenAIResponsesProvider:
         schema = output_model.model_json_schema()
         body = {
             "model": self.model,
-            "instructions": request.system_prompt,
+            "instructions": (
+                relevance_system_prompt(request)
+                if request.operation == "relevance"
+                else request.system_prompt
+            ),
             "input": [
                 {
                     "role": "user",

@@ -6,12 +6,14 @@ from integrator_domain.models.ai import (
     DraftProvenance,
     ExtractedEntity,
     ExtractedFact,
+    ExtractedGeography,
     MaterialRelevance,
     PromptTemplate,
     PromptVersion,
     Topic,
 )
 from integrator_domain.models.delivery import Delivery, DeliveryAttempt
+from integrator_domain.models.integration import IntegrationAuditEvent, ReplayRequest
 from integrator_domain.models.event import (
     Event,
     EventClusteringPolicy,
@@ -56,12 +58,15 @@ __all__ = [
     "DraftProvenance",
     "ExtractedEntity",
     "ExtractedFact",
+    "ExtractedGeography",
     "MaterialRelevance",
     "LanguageConfig",
+    "IntegrationAuditEvent",
     "MaterialLanguageDetection",
     "OutboxEvent",
     "PromptTemplate",
     "PromptVersion",
+    "ReplayRequest",
     "ParserRepair",
     "ParserSnapshot",
     "ParserVersion",

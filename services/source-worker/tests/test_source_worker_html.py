@@ -11,7 +11,8 @@ LISTING = b"""
 <article class='story'><a class='headline' href='/news/two'>Second headline</a></article></main>
 """
 ARTICLE = b"""
-<html><head><link rel='canonical' href='/canonical/one?utm=x'></head>
+<html><head><link rel='canonical' href='/canonical/one?utm=x'>
+<meta property='og:image' content='/images/one.jpg'></head>
 <body><main class='article-body'>The complete article text.</main>
 <time class='published' datetime='2026-08-10T12:00:00Z'></time>
 <span class='byline'>Jane</span></body></html>
@@ -59,6 +60,13 @@ async def test_html_connector_extracts_normal_page_relative_urls_and_canonical()
     assert first.body == "The complete article text."
     assert first.author == "Jane"
     assert first.published_at == datetime(2026, 8, 10, 12, tzinfo=UTC)
+    assert first.raw["media"] == [
+        {
+            "type": "image",
+            "source_url": "https://example.test/images/one.jpg",
+            "provider": "source",
+        }
+    ]
 
 
 async def test_html_connector_tolerates_malformed_html_and_missing_optional_fields() -> None:

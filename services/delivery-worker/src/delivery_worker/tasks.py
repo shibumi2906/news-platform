@@ -35,6 +35,8 @@ async def _process_pending_deliveries() -> dict[str, int]:
                 client,
                 batch_size=settings.batch_size,
                 http_timeout_seconds=settings.http_timeout_seconds,
+                max_delivery_attempts=settings.max_delivery_attempts,
+                retry_backoff_seconds=settings.retry_backoff_seconds,
             )
     finally:
         await engine.dispose()
@@ -45,10 +47,12 @@ async def _process_pending_deliveries() -> dict[str, int]:
         retrying=stats.retrying,
         skipped_duplicate=stats.skipped_duplicate,
         failed=stats.failed,
+        dead_lettered=stats.dead_lettered,
     )
     return {
         "delivered": stats.delivered,
         "retrying": stats.retrying,
         "skipped_duplicate": stats.skipped_duplicate,
         "failed": stats.failed,
+        "dead_lettered": stats.dead_lettered,
     }

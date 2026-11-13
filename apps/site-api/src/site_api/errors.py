@@ -34,6 +34,11 @@ class UnsupportedSignatureVersionError(DomainError):
     status_code = 401
 
 
+class UnknownSigningKeyError(DomainError):
+    code = "unknown_signing_key"
+    status_code = 401
+
+
 class ReplayNonceError(DomainError):
     code = "replay_nonce"
     status_code = 401

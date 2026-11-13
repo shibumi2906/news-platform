@@ -15,7 +15,10 @@ WORKDIR /workspace
 
 COPY pyproject.toml uv.lock ./
 COPY packages/python/common packages/python/common
+COPY packages/python/contracts packages/python/contracts
 COPY packages/python/integrator-domain packages/python/integrator-domain
+COPY services/processing-worker services/processing-worker
+COPY services/source-worker services/source-worker
 COPY apps/integrator-api apps/integrator-api
 
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --package integrator-api --no-dev

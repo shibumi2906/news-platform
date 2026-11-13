@@ -27,3 +27,11 @@ Defaults < config file < environment < secret file/manager. Production validatio
 
 Тесты defaults/overrides/missing secrets/invalid values; integrator отклоняет dashboard config; export/import не раскрывает secret; документация генерируется или сверяется со schema в CI.
 
+## 5. Delivery contract safety
+
+| Variable | Default | Scope | Meaning |
+| --- | --- | --- | --- |
+| `DELIVERY_MAX_ATTEMPTS` | `10` | delivery-worker | Durable outer attempt budget before dead-lettering |
+| `DELIVERY_RETRY_BACKOFF_SECONDS` | `30` | delivery-worker | Base for exponential outer retry backoff |
+
+Both settings require a worker restart. Manual DLQ retry explicitly resets the durable attempt budget. Signing secrets are managed as write-only connection values through the secured Admin API, not as global environment variables.

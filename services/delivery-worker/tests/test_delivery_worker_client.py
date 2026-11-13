@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
 from common.logging import bind_correlation_id, reset_correlation_id
-from common.signing import CONNECTION_ID_HEADER, IDEMPOTENCY_KEY_HEADER, SIGNATURE_HEADER, verify
+from common.signing import (
+    CONNECTION_ID_HEADER,
+    IDEMPOTENCY_KEY_HEADER,
+    SIGNATURE_HEADER,
+    SIGNING_KEY_ID_HEADER,
+    verify,
+)
+from contracts.package import CanonicalNewsPackageEnvelope, PackageContent, PackageSourceRef
 from delivery_worker.client import send_package
 
 
@@ -40,6 +48,7 @@ async def test_send_package_signs_request_and_returns_delivered_on_200() -> None
     assert request.url == "https://site.example.com/api/v1/incoming-news-packages"
     assert request.headers[IDEMPOTENCY_KEY_HEADER] == "pkg-1:1"
     assert request.headers[CONNECTION_ID_HEADER] == str(connection_id)
+    assert request.headers[SIGNING_KEY_ID_HEADER] == "legacy"
     assert request.headers["X-Request-Id"] == correlation_id
     assert verify(
         "s3cret",
@@ -141,3 +150,52 @@ async def test_send_package_redacts_transport_exception_details() -> None:
     assert result.status == "failed"
     assert result.error == "transport_connecterror"
     assert "private-url-value" not in result.error
+
+
+async def test_send_package_rejects_inconsistent_nonempty_acknowledgement() -> None:
+    now = datetime.now(UTC)
+    envelope = CanonicalNewsPackageEnvelope(
+        package_id=uuid4(),
+        package_version=1,
+        instance_id=uuid4(),
+        event_id=uuid4(),
+        content=PackageContent(
+            title="Title", canonical_url="https://example.test/one", language="en"
+        ),
+        sources=[
+            PackageSourceRef(
+                source_id=uuid4(),
+                source_material_id=uuid4(),
+                external_id="one",
+                url="https://example.test/one",
+                published_at=now,
+                fetched_at=now,
+            )
+        ],
+        created_at=now,
+        updated_at=now,
+    )
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            201,
+            json={
+                "package_id": str(uuid4()),
+                "package_version": 99,
+                "status": "accepted",
+                "received_at": "2026-08-26T12:00:00Z",
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    result = await send_package(
+        client,
+        connection_id=uuid4(),
+        delivery_url="https://site.example.com",
+        hmac_secret="s3cret",
+        idempotency_key="pkg-1:1",
+        body=envelope.model_dump_json().encode(),
+        timeout_seconds=5.0,
+    )
+    await client.aclose()
+    assert result.status == "failed"
+    assert result.error == "inconsistent_acknowledgement"

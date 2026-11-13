@@ -6,15 +6,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 async def promote(session: AsyncSession, release: AIConfigRelease, score: float) -> AIConfigRelease:
-    policy = await session.scalar(select(AIQualityPolicy).where(AIQualityPolicy.operation == release.audit["operation"]))
+    operation = release.audit["operation"]
+    policy = await session.scalar(select(AIQualityPolicy).where(AIQualityPolicy.operation == operation))
     minimum = policy.minimum_score if policy else 0.8
     release.eval_score = score
     if score < minimum:
         release.status = "rejected"; release.audit = {**release.audit, "reason": "quality_gate_failed"}; return release
-    active = await session.scalar(select(AIConfigRelease).where(AIConfigRelease.status == "active"))
+    active_rows = list((await session.execute(select(AIConfigRelease).where(AIConfigRelease.status == "active"))).scalars())
+    active = next((item for item in active_rows if item.audit.get("operation") == operation), None)
     release.previous_release_id = active.id if active else None
     release.rollout_percent = policy.canary_percent if policy else 10
     release.status = "canary" if release.rollout_percent < 100 else "active"
+    if release.status == "active" and active is not None:
+        active.status = "superseded"
     return release
 
 async def rollback(session: AsyncSession, release: AIConfigRelease) -> AIConfigRelease:

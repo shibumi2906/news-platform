@@ -75,6 +75,7 @@ services:
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?set ADMIN_API_TOKEN}
       ADMIN_SESSION_KEYS: ${ADMIN_SESSION_KEYS:?set ADMIN_SESSION_KEYS}
       SITE_API_URL: http://site-api:8000
+      AI_PROVIDERS: ${AI_PROVIDERS:?set AI_PROVIDERS}
     ports: !reset []
   site-api:
     restart: unless-stopped

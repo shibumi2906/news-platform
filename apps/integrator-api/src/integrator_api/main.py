@@ -21,6 +21,7 @@ from common.observability import (
     request_started,
     trace_context,
 )
+from common.rate_limit import SlidingWindowLimiter
 from common.observability import (
     router as metrics_router,
 )
@@ -33,7 +34,11 @@ from integrator_api.api.ai_admin import router as ai_admin_router
 from integrator_api.api.event_intelligence import router as event_intelligence_router
 from integrator_api.api.parser_lab import router as parser_lab_router
 from integrator_api.api.health import router as health_router
+from integrator_api.api.integration import router as integration_router
 from integrator_api.api.operations import router as operations_router
+from integrator_api.api.materials import router as materials_router
+from integrator_api.api.relevance import router as relevance_router
+from integrator_api.api.site_feed import router as site_feed_router
 from integrator_api.api.sources import router as sources_router
 from integrator_api.config import Settings
 from integrator_api.security import build_remote_session_validator
@@ -75,6 +80,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Integrator API", version=settings.app_version, lifespan=lifespan)
     app.state.settings = settings
+    app.state.integration_limiter = SlidingWindowLimiter(limit=30, window_seconds=60)
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=[item.strip() for item in settings.allowed_hosts.split(",") if item.strip()],
@@ -129,4 +135,8 @@ def create_app() -> FastAPI:
     app.include_router(event_intelligence_router)
     app.include_router(parser_lab_router)
     app.include_router(operations_router)
+    app.include_router(materials_router)
+    app.include_router(relevance_router)
+    app.include_router(site_feed_router)
+    app.include_router(integration_router)
     return app

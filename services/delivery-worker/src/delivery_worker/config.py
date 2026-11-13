@@ -15,6 +15,10 @@ class Settings(BaseAppSettings):
     poll_interval_seconds: float = Field(
         default=15.0, alias="DELIVERY_WORKER_POLL_INTERVAL_SECONDS"
     )
+    max_delivery_attempts: int = Field(default=10, ge=1, alias="DELIVERY_MAX_ATTEMPTS")
+    retry_backoff_seconds: float = Field(
+        default=30.0, ge=0, alias="DELIVERY_RETRY_BACKOFF_SECONDS"
+    )
 
     @classmethod
     def from_env(cls) -> Settings:

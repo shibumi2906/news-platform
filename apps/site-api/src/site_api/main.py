@@ -146,6 +146,7 @@ def create_app() -> FastAPI:
     app.state.login_limiter = SlidingWindowLimiter(
         limit=settings.auth_login_attempts_per_minute, window_seconds=60
     )
+    app.state.integration_limiter = SlidingWindowLimiter(limit=30, window_seconds=60)
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=[item.strip() for item in settings.allowed_hosts.split(",") if item.strip()],

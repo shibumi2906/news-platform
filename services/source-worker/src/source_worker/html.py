@@ -210,6 +210,15 @@ async def collect_html_source(
             else None
         )
         external_id = hashlib.sha256(canonical_url.encode()).hexdigest()
+        image_selector = str(config.get("image_selector", "meta[property=og:image]"))
+        image_url = _first_attr(
+            page.root, image_selector, str(config.get("image_attribute", "content"))
+        )
+        media = (
+            [{"type": "image", "source_url": urljoin(url, image_url), "provider": "source"}]
+            if image_url
+            else []
+        )
         candidates.append(
             SourceCandidate(
                 source_id=source_id,
@@ -222,7 +231,7 @@ async def collect_html_source(
                 language=str(config.get("language", "en")),
                 published_at=_published(published, fetched_at),
                 fetched_at=fetched_at,
-                raw={"adapter": "html", "list_url": list_url},
+                raw={"adapter": "html", "list_url": list_url, "media": media},
             )
         )
     return candidates, listing.etag, listing.last_modified, None

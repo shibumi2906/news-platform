@@ -16,6 +16,7 @@ from site_api.errors import (
     PayloadValidationError,
     ReplayNonceError,
     ReplayWindowExceededError,
+    UnknownSigningKeyError,
     UnsupportedSchemaVersionError,
 )
 from site_api.ingestion import ingest_package
@@ -373,7 +374,7 @@ async def test_ingest_package_rejects_unknown_schema_major(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     connection_id = await _seed_connection(session_factory)
-    body = _envelope_body().replace(b'"schema_version":"1.0"', b'"schema_version":"2.0"')
+    body = _envelope_body().replace(b'"schema_version":"1.1"', b'"schema_version":"2.0"')
     headers = _headers(idempotency_key="schema-v2", body=body)
     with pytest.raises(UnsupportedSchemaVersionError):
         async with session_factory() as session:
@@ -385,3 +386,90 @@ async def test_ingest_package_rejects_unknown_schema_major(
                 replay_window_seconds=300.0,
                 **headers,
             )
+
+
+async def test_active_and_previous_signing_keys_are_accepted_until_retirement(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    connection_id = await _seed_connection(session_factory)
+    async with session_factory() as session, session.begin():
+        connection = await session.get(IntegratorConnection, connection_id)
+        assert connection is not None
+        connection.previous_key_id = "legacy"
+        connection.previous_hmac_secret = SECRET
+        connection.active_key_id = "v2"
+        connection.hmac_secret = "rotated-secret"
+
+    for key_id, secret in (("v2", "rotated-secret"), ("legacy", SECRET)):
+        body = _envelope_body()
+        key = f"key-{key_id}"
+        headers = _headers(idempotency_key=key, body=body, secret=secret)
+        async with session_factory() as session:
+            receipt, _ = await ingest_package(
+                session,
+                connection_id=connection_id,
+                signing_key_id=key_id,
+                idempotency_key=key,
+                body=body,
+                replay_window_seconds=300,
+                **headers,
+            )
+        assert receipt.status == "accepted"
+
+    body = _envelope_body()
+    headers = _headers(idempotency_key="unknown", body=body, secret="unknown-secret")
+    with pytest.raises(UnknownSigningKeyError):
+        async with session_factory() as session:
+            await ingest_package(
+                session,
+                connection_id=connection_id,
+                signing_key_id="unknown",
+                idempotency_key="unknown",
+                body=body,
+                replay_window_seconds=300,
+                **headers,
+            )
+
+    async with session_factory() as session, session.begin():
+        connection = await session.get(IntegratorConnection, connection_id)
+        assert connection is not None
+        connection.previous_key_id = None
+        connection.previous_hmac_secret = None
+    retired_body = _envelope_body()
+    retired_headers = _headers(idempotency_key="retired", body=retired_body)
+    with pytest.raises(UnknownSigningKeyError):
+        async with session_factory() as session:
+            await ingest_package(
+                session,
+                connection_id=connection_id,
+                signing_key_id="legacy",
+                idempotency_key="retired",
+                body=retired_body,
+                replay_window_seconds=300,
+                **retired_headers,
+            )
+
+
+async def test_out_of_order_versions_never_regress_latest_version(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    connection_id = await _seed_connection(session_factory)
+    package_id = uuid.uuid4()
+    for version in (3, 1, 2):
+        body = _envelope_body(package_id=package_id, package_version=version)
+        key = f"{package_id}:{version}"
+        headers = _headers(idempotency_key=key, body=body)
+        async with session_factory() as session:
+            await ingest_package(
+                session,
+                connection_id=connection_id,
+                idempotency_key=key,
+                body=body,
+                replay_window_seconds=300,
+                **headers,
+            )
+    async with session_factory() as session:
+        incoming = (await session.execute(select(IncomingPackage))).scalar_one()
+        versions = list((await session.execute(select(IncomingPackageVersion))).scalars())
+        assert incoming.latest_version == 3
+        assert {item.package_version for item in versions} == {1, 2, 3}

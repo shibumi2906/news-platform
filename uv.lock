@@ -591,6 +591,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "integrator-domain" },
+    { name = "processing-worker" },
+    { name = "source-worker" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -600,6 +602,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "integrator-domain", editable = "packages/python/integrator-domain" },
+    { name = "processing-worker", editable = "services/processing-worker" },
+    { name = "source-worker", editable = "services/source-worker" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
 

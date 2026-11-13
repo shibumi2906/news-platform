@@ -9,7 +9,16 @@ from uuid import UUID, uuid4
 
 from common.hashing import sha256_hex
 from common.logging import get_logger
-from contracts.package import PackageContent
+from common.observability import METRICS
+from contracts.package import (
+    PackageAIProvenance,
+    PackageCategory,
+    PackageContent,
+    PackageGeography,
+    PackageMedia,
+    PackageSourceRef,
+    PackageTopic,
+)
 from integrator_domain.models import (
     AIOperationRun,
     CanonicalNewsPackage,
@@ -19,9 +28,12 @@ from integrator_domain.models import (
     EventMaterial,
     ExtractedEntity,
     ExtractedFact,
+    ExtractedGeography,
+    MaterialLanguageDetection,
     MaterialRelevance,
     OutboxEvent,
     PromptVersion,
+    Source,
     SourceMaterial,
     Topic,
     TranslationVersion,
@@ -40,6 +52,7 @@ from processing_worker.ai_gateway import (
 from processing_worker.event_intelligence import decide_cluster
 from processing_worker.packaging import build_ai_package_envelope, envelope_to_row
 from processing_worker.prompt_registry import get_active_prompt
+from processing_worker.relevance import relevance_request
 from processing_worker.schemas import DraftOutput, ExtractionOutput, RelevanceOutput
 from processing_worker.translation import TranslationPipelineError, generate_translations
 
@@ -143,18 +156,14 @@ async def _process_one(
     try:
         relevance_prompt = await _prompt(session_factory, "relevance")
         active_prompt = relevance_prompt
-        active_input = {
-            "text": f"{material.title}\n{material.excerpt or ''}\n{material.body or ''}",
-            "topics": [_topic_payload(topic) for topic in topics],
-        }
-        relevance_response = await gateway.complete(
-            AIRequest(
-                operation="relevance",
-                system_prompt=relevance_prompt.system_prompt,
-                user_prompt=relevance_prompt.user_prompt,
-                input_data=active_input,
-            )
+        request = relevance_request(
+            relevance_prompt.system_prompt,
+            relevance_prompt.user_prompt,
+            f"{material.title}\n{material.excerpt or ''}\n{material.body or ''}",
+            topics,
         )
+        active_input = request.input_data
+        relevance_response = await gateway.complete(request)
         active_provider, active_model = relevance_response.provider, relevance_response.model
         relevance = RelevanceOutput.model_validate(relevance_response.output)
         relevance_run_id = await _store_run(
@@ -200,27 +209,7 @@ async def _process_one(
             extraction_run_id,
             extraction,
         )
-        await _create_event_draft(
-            session_factory,
-            event_id,
-            instance_id,
-            gateway,
-            taxonomy=[
-                value
-                for match in relevant_matches
-                for value in (
-                    str(match.topic_id),
-                    *([match.category_slug] if match.category_slug else []),
-                )
-            ],
-            regions=[
-                region
-                for match in relevant_matches
-                for topic in topics
-                if topic.id == match.topic_id
-                for region in topic.regions
-            ],
-        )
+        await _create_event_draft(session_factory, event_id, instance_id, gateway)
         await _set_outbox_status(session_factory, outbox_event_id, "processed")
         logger.info(
             "ai_material_processed",
@@ -249,7 +238,7 @@ async def _process_one(
                 active_input,
                 provider=active_provider,
                 model=active_model,
-                error_code=type(exc).__name__,
+                error_code=exc.code if isinstance(exc, AIGatewayError) else type(exc).__name__,
             )
         logger.error(
             "ai_material_processing_failed",
@@ -266,18 +255,153 @@ async def _prompt(
         return await get_active_prompt(session, operation)
 
 
-def _topic_payload(topic: Topic) -> dict[str, Any]:
-    return {
-        "id": str(topic.id),
-        "name": topic.name,
-        "categories": topic.categories,
-        "keywords": topic.keywords,
-        "exclusions": topic.exclusions,
-        "regions": topic.regions,
-        "priority": topic.priority,
-        "relevance_threshold": topic.relevance_threshold,
-        "additional_rules": topic.additional_rules,
-    }
+def _taxonomy_payloads(
+    relevances: list[MaterialRelevance], topics_by_id: dict[UUID, Topic]
+) -> tuple[list[str], list[str], list[PackageTopic], list[PackageCategory]]:
+    topic_ids = list(dict.fromkeys(item.topic_id for item in relevances))
+    topics = [
+        PackageTopic(id=topic.id, slug=topic.slug, label=topic.name)
+        for topic_id in topic_ids
+        if (topic := topics_by_id.get(topic_id)) is not None
+    ]
+    categories: list[PackageCategory] = []
+    seen_categories: set[tuple[UUID, str]] = set()
+    for relevance in relevances:
+        if not relevance.category_slug:
+            continue
+        key = (relevance.topic_id, relevance.category_slug)
+        if key in seen_categories:
+            continue
+        seen_categories.add(key)
+        topic = topics_by_id.get(relevance.topic_id)
+        configured = next(
+            (
+                item
+                for item in (topic.categories if topic else [])
+                if item.get("slug") == relevance.category_slug
+            ),
+            {},
+        )
+        categories.append(
+            PackageCategory(
+                slug=relevance.category_slug,
+                topic_id=relevance.topic_id,
+                label=_optional_text(configured.get("name")),
+                parent_slug=_optional_text(configured.get("parent_slug")),
+            )
+        )
+    taxonomy = list(
+        dict.fromkeys(
+            [*[str(item) for item in topic_ids], *[item.slug for item in categories]]
+        )
+    )
+    regions = list(
+        dict.fromkeys(
+            region
+            for topic_id in topic_ids
+            if (topic := topics_by_id.get(topic_id)) is not None
+            for region in topic.regions
+        )
+    )
+    return taxonomy, regions, topics, categories
+
+
+def _source_ref(material: SourceMaterial, source: Source | None) -> PackageSourceRef:
+    content = json.dumps(
+        {
+            "canonical_url": material.canonical_url,
+            "title": material.title,
+            "excerpt": material.excerpt,
+            "body": material.body,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return PackageSourceRef(
+        source_id=material.source_id,
+        source_material_id=material.id,
+        external_id=material.external_id,
+        url=material.url,
+        published_at=material.published_at,
+        fetched_at=material.fetched_at,
+        source_name=source.name if source else None,
+        adapter_type=source.adapter_type if source else None,
+        author=material.author,
+        canonical_url=material.canonical_url,
+        content_hash=sha256_hex(content),
+    )
+
+
+def _material_media(material: SourceMaterial) -> list[PackageMedia]:
+    raw_media = material.raw.get("media")
+    if isinstance(raw_media, list):
+        result: list[PackageMedia] = []
+        for value in raw_media:
+            if not isinstance(value, dict) or not _optional_text(value.get("source_url")):
+                continue
+            result.append(
+                PackageMedia(
+                    type="video" if value.get("type") == "video" else "image",
+                    source_url=str(value["source_url"]),
+                    thumbnail_url=_optional_text(value.get("thumbnail_url")),
+                    mime_type=_optional_text(value.get("mime_type")),
+                    width=_optional_int(value.get("width")),
+                    height=_optional_int(value.get("height")),
+                    duration=_optional_float(value.get("duration")),
+                    external_id=_optional_text(value.get("external_id")),
+                    provider=_optional_text(value.get("provider")),
+                    source_material_id=material.id,
+                    rights_hint="link_only",
+                    attribution=material.author,
+                )
+            )
+        return result
+    if material.raw.get("adapter") != "youtube":
+        return []
+    thumbnails = material.raw.get("thumbnails")
+    candidates = [item for item in thumbnails.values() if isinstance(item, dict)] if isinstance(
+        thumbnails, dict
+    ) else []
+    thumbnail = max(
+        candidates,
+        key=lambda item: (_optional_int(item.get("width")) or 0)
+        * (_optional_int(item.get("height")) or 0),
+        default={},
+    )
+    return [
+        PackageMedia(
+            type="video",
+            source_url=material.url,
+            thumbnail_url=_optional_text(thumbnail.get("url")),
+            width=_optional_int(thumbnail.get("width")),
+            height=_optional_int(thumbnail.get("height")),
+            external_id=material.external_id,
+            provider="youtube",
+            source_material_id=material.id,
+            rights_hint="link_only",
+            attribution=material.author,
+        )
+    ]
+
+
+def _optional_text(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _optional_int(value: object) -> int | None:
+    try:
+        parsed = int(str(value))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _optional_float(value: object) -> float | None:
+    try:
+        parsed = float(str(value))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
 
 
 async def _store_run(
@@ -293,7 +417,8 @@ async def _store_run(
             operation=operation,
             provider=response.provider,
             model=response.model,
-            prompt_version_id=prompt.id,
+            prompt_version_id=response.prompt_version_id or prompt.id,
+            ai_config_release_id=response.release_id,
             status="succeeded",
             input_hash=sha256_hex(serialized),
             output=response.output,
@@ -436,6 +561,14 @@ async def _store_extraction_and_cluster(
                     ai_operation_run_id=run_id,
                 )
             )
+        for geography_output in output.geographies:
+            session.add(
+                ExtractedGeography(
+                    source_material_id=material.id,
+                    **geography_output.model_dump(),
+                    ai_operation_run_id=run_id,
+                )
+            )
         return event.id, fact_ids
 
 
@@ -444,9 +577,6 @@ async def _create_event_draft(
     event_id: UUID,
     instance_id: UUID,
     gateway: AIGateway,
-    *,
-    taxonomy: list[str],
-    regions: list[str],
 ) -> None:
     async with session_factory() as session:
         event = await session.get(Event, event_id)
@@ -486,6 +616,39 @@ async def _create_event_draft(
                 )
             ).scalars()
         )
+        geographies = list(
+            (
+                await session.execute(
+                    select(ExtractedGeography).where(
+                        ExtractedGeography.source_material_id.in_(material_ids)
+                    )
+                )
+            ).scalars()
+        )
+        relevances = list(
+            (
+                await session.execute(
+                    select(MaterialRelevance).where(
+                        MaterialRelevance.source_material_id.in_(material_ids),
+                        MaterialRelevance.is_relevant,
+                    )
+                )
+            ).scalars()
+        )
+        topic_ids = {item.topic_id for item in relevances}
+        topics_by_id = {
+            item.id: item
+            for item in (
+                await session.execute(select(Topic).where(Topic.id.in_(topic_ids)))
+            ).scalars()
+        }
+        source_ids = {item.source_id for item in materials}
+        sources_by_id = {
+            item.id: item
+            for item in (
+                await session.execute(select(Source).where(Source.id.in_(source_ids)))
+            ).scalars()
+        }
         previous = (
             await session.execute(
                 select(CanonicalNewsPackage)
@@ -495,6 +658,9 @@ async def _create_event_draft(
             )
         ).scalar_one_or_none()
 
+    legacy_taxonomy, legacy_regions, package_topics, package_categories = _taxonomy_payloads(
+        relevances, topics_by_id
+    )
     prompt = await _prompt(session_factory, "draft")
     draft_input = {
         "materials": [
@@ -502,7 +668,7 @@ async def _create_event_draft(
         ],
         "facts": [item.value for item in facts],
         "entities": [item.name for item in entities],
-        "tags": list(dict.fromkeys([*taxonomy, *[item.name for item in entities]])),
+        "tags": list(dict.fromkeys([*legacy_taxonomy, *[item.name for item in entities]])),
     }
     try:
         response = await gateway.complete(
@@ -527,7 +693,7 @@ async def _create_event_draft(
             error_code=type(exc).__name__,
         )
         raise _RecordedAIFailure("draft operation failed") from exc
-    await _store_run(session_factory, prompt, "draft", draft_input, response)
+    draft_run_id = await _store_run(session_factory, prompt, "draft", draft_input, response)
     translation_bundle = await generate_translations(session_factory, materials[0], draft, gateway)
     language_versions = {
         item.target_language_code: PackageContent(
@@ -566,6 +732,60 @@ async def _create_event_draft(
         }
         for item in entities
     ]
+    geography_payload = [
+        PackageGeography(
+            country=item.country,
+            country_code=item.country_code,
+            state_or_region=item.state_or_region,
+            state_or_region_code=item.state_or_region_code,
+            metro=item.metro,
+            city=item.city,
+            district=item.district,
+            confidence=item.confidence,
+            source="ai",
+            source_material_id=item.source_material_id,
+        )
+        for item in geographies
+    ]
+    source_refs = [_source_ref(item, sources_by_id.get(item.source_id)) for item in materials]
+    media = [entry for material in materials for entry in _material_media(material)]
+    run_ids = {
+        draft_run_id,
+        *[item.ai_operation_run_id for item in relevances],
+        *[item.ai_operation_run_id for item in facts],
+        *[item.ai_operation_run_id for item in entities],
+        *[item.ai_operation_run_id for item in geographies],
+        *[item.ai_operation_run_id for item in translation_bundle.translations],
+    }
+    async with session_factory() as provenance_session:
+        detections = list(
+            (
+                await provenance_session.execute(
+                    select(MaterialLanguageDetection).where(
+                        MaterialLanguageDetection.source_material_id.in_(material_ids)
+                    )
+                )
+            ).scalars()
+        )
+        run_ids.update(item.ai_operation_run_id for item in detections)
+        runs = list(
+            (
+                await provenance_session.execute(
+                    select(AIOperationRun).where(AIOperationRun.id.in_(run_ids))
+                )
+            ).scalars()
+        )
+    ai_provenance = [
+        PackageAIProvenance(
+            operation_run_id=run.id,
+            operation=run.operation,
+            provider=run.provider,
+            model=run.model,
+            prompt_version_id=run.prompt_version_id,
+            release_id=run.ai_config_release_id,
+        )
+        for run in runs
+    ]
     envelope = build_ai_package_envelope(
         materials,
         event,
@@ -575,12 +795,20 @@ async def _create_event_draft(
         package_version=package_version,
         facts=fact_payload,
         entities=entity_payload,
-        taxonomy=list(dict.fromkeys(taxonomy)),
-        regions=list(dict.fromkeys(regions)),
+        taxonomy=legacy_taxonomy,
+        regions=legacy_regions,
+        topics=package_topics,
+        categories=package_categories,
+        geographies=geography_payload,
+        media=media,
+        ai_provenance=ai_provenance,
+        source_refs=source_refs,
         source_language=translation_bundle.source_language_code,
         source_direction=translation_bundle.source_direction,
         language_versions=language_versions,
     )
+    METRICS.increment("package_media_items_total", len(media))
+    METRICS.increment("package_geographies_total", len(geography_payload), source="ai")
     async with session_factory() as session, session.begin():
         package = envelope_to_row(envelope)
         session.add(package)
@@ -644,6 +872,10 @@ async def _set_outbox_status(
 async def _fail_outbox(
     session_factory: async_sessionmaker[AsyncSession], outbox_event_id: UUID, error_code: str
 ) -> str:
-    await _set_outbox_status(session_factory, outbox_event_id, "failed")
+    async with session_factory() as session, session.begin():
+        outbox = await session.get(OutboxEvent, outbox_event_id)
+        if outbox is not None:
+            outbox.status = "failed"
+            outbox.payload = {**outbox.payload, "processing_error": error_code}
     logger.error("ai_outbox_failed", outbox_event_id=str(outbox_event_id), error_code=error_code)
     return "failed"

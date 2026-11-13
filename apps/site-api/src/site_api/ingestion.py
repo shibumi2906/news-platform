@@ -19,7 +19,7 @@ from uuid import UUID
 from common.signing import SIGNATURE_VERSION, verify
 from common.time import utc_now
 from contracts.ingestion import IncomingPackageReceipt
-from contracts.package import CanonicalNewsPackageEnvelope
+from contracts.package import SUPPORTED_SCHEMA_VERSIONS, CanonicalNewsPackageEnvelope
 from pydantic import ValidationError
 from site_domain.models import (
     IncomingPackage,
@@ -39,6 +39,7 @@ from site_api.errors import (
     PayloadValidationError,
     ReplayNonceError,
     ReplayWindowExceededError,
+    UnknownSigningKeyError,
     UnsupportedSchemaVersionError,
     UnsupportedSignatureVersionError,
 )
@@ -58,6 +59,7 @@ async def ingest_package(
     body: bytes,
     replay_window_seconds: float,
     signature_version: str = SIGNATURE_VERSION,
+    signing_key_id: str = "legacy",
 ) -> tuple[IncomingPackageReceipt, int]:
     connection = await session.get(IntegratorConnection, connection_id)
     if connection is None or not connection.is_active:
@@ -68,8 +70,12 @@ async def ingest_package(
 
     _check_replay_window(timestamp, replay_window_seconds)
 
+    verification_secret = _verification_secret(connection, signing_key_id)
+    if verification_secret is None:
+        raise UnknownSigningKeyError("unknown or retired signing key")
+
     if not verify(
-        connection.hmac_secret,
+        verification_secret,
         timestamp=timestamp,
         nonce=nonce,
         idempotency_key=idempotency_key,
@@ -95,7 +101,7 @@ async def ingest_package(
             details={"errors": _summarize_validation_errors(exc)},
         ) from exc
 
-    if envelope.schema_version.split(".", 1)[0] != "1":
+    if envelope.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise UnsupportedSchemaVersionError("unsupported canonical package schema version")
 
     status, package_version_id = await _upsert_incoming_package(
@@ -143,6 +149,14 @@ async def ingest_package(
 
     status_code = _ACCEPTED_STATUS_CODE if status == "accepted" else _DUPLICATE_STATUS_CODE
     return receipt, status_code
+
+
+def _verification_secret(connection: IntegratorConnection, signing_key_id: str) -> str | None:
+    if signing_key_id == connection.active_key_id:
+        return connection.hmac_secret
+    if signing_key_id == connection.previous_key_id:
+        return connection.previous_hmac_secret
+    return None
 
 
 def _replay_stored_attempt(

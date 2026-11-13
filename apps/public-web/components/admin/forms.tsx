@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 
-async function mutate(system: "site" | "integrator", path: string, method: string, body: unknown) {
+export async function mutate(system: "site" | "integrator", path: string, method: string, body: unknown) {
   const csrf = document.cookie.split("; ").find((item) => item.startsWith("news_admin_csrf="))?.split("=", 2)[1];
   const response = await fetch(`/api/admin/${system}${path}`, {
     method,
@@ -12,34 +12,23 @@ async function mutate(system: "site" | "integrator", path: string, method: strin
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { detail?: string; error?: { message?: string } } | null;
-    throw new Error(payload?.error?.message || payload?.detail || `Request failed (${response.status})`);
+    throw new Error(payload?.error?.message || (typeof payload?.detail === "string" ? payload.detail : undefined) || `Request failed (${response.status})`);
   }
   return response.status === 204 ? null : response.json();
 }
 
-function MutationForm({ children, onSubmit, label }: { children: ReactNode; onSubmit: (data: FormData) => Promise<void>; label: string }) {
+export function MutationForm({ children, onSubmit, label, resetOnSuccess = true }: { children: ReactNode; onSubmit: (data: FormData) => Promise<void>; label: string; resetOnSuccess?: boolean }) {
   const [message, setMessage] = useState<string>();
   const [pending, setPending] = useState(false);
   const router = useRouter();
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setPending(true); setMessage(undefined);
-    try { await onSubmit(new FormData(event.currentTarget)); setMessage("Saved"); event.currentTarget.reset(); router.refresh(); }
+    const form = event.currentTarget;
+    try { await onSubmit(new FormData(form)); setMessage("Saved"); if (resetOnSuccess) form.reset(); router.refresh(); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Request failed"); }
     finally { setPending(false); }
   }
   return <form className="admin-form" onSubmit={submit}>{children}<button disabled={pending} type="submit">{pending ? "Working…" : label}</button>{message && <p className={message === "Saved" ? "form-success" : "form-error"} role="status">{message}</p>}</form>;
-}
-
-export function SourceCreateForm() {
-  return <MutationForm label="Add source" onSubmit={(data) => mutate("integrator", "/api/v1/sources", "POST", { name: data.get("name"), feed_url: data.get("feed_url"), adapter_type: data.get("adapter_type"), poll_interval_seconds: Number(data.get("poll_interval_seconds")) }).then(() => undefined)}><label>Name<input name="name" required /></label><label>Feed or page URL<input name="feed_url" type="url" required /></label><label>Adapter<select name="adapter_type"><option value="rss">RSS / Atom</option><option value="html">HTTP / HTML</option></select></label><label>Poll interval, seconds<input name="poll_interval_seconds" type="number" min="30" defaultValue="300" required /></label></MutationForm>;
-}
-
-export function SourceStateButton({ id, active }: { id: string; active: boolean }) {
-  return <MutationForm label={active ? "Deactivate" : "Activate"} onSubmit={() => mutate("integrator", `/api/v1/sources/${id}/${active ? "deactivate" : "activate"}`, "POST", {}).then(() => undefined)}><span className="visually-hidden">Change source state</span></MutationForm>;
-}
-
-export function TopicCreateForm() {
-  return <MutationForm label="Create topic" onSubmit={async (data) => { const categories = JSON.parse(String(data.get("categories") || "[]")) as unknown; await mutate("integrator", "/api/v1/ai/topics", "POST", { name: data.get("name"), slug: data.get("slug"), description: data.get("description") || null, categories, keywords: String(data.get("keywords") || "").split(",").map((v) => v.trim()).filter(Boolean), exclusions: [], regions: [], priority: Number(data.get("priority") || 0), relevance_threshold: Number(data.get("threshold") || .5), additional_rules: {}, is_active: true }); }}><label>Name<input name="name" required /></label><label>Slug<input name="slug" pattern="[a-z0-9][a-z0-9-]*" required /></label><label>Description<textarea name="description" /></label><label>Keywords, comma-separated<input name="keywords" /></label><label>Categories JSON<textarea name="categories" defaultValue='[{"name":"News","slug":"news","keywords":[]}]' required /></label><div className="form-row"><label>Priority<input name="priority" type="number" defaultValue="0" /></label><label>Threshold<input name="threshold" type="number" min="0" max="1" step="0.05" defaultValue="0.5" /></label></div></MutationForm>;
 }
 
 export function LanguageToggle({ language }: { language: { code: string; name: string; direction: string; priority: number; is_active: boolean; translation_enabled: boolean } }) {

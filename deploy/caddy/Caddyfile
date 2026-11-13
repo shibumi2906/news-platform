@@ -9,6 +9,15 @@
     Referrer-Policy strict-origin-when-cross-origin
     X-Frame-Options DENY
   }
+  handle /integrator-api/api/v1/site-feed/materials {
+    uri strip_prefix /integrator-api
+    request_body {
+      max_size 16KB
+    }
+    reverse_proxy integrator-api:8000 {
+      header_up Host integrator-api
+    }
+  }
   reverse_proxy public-web:3000
 }
 {$SITE_API_DOMAIN} {

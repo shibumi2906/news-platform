@@ -7,8 +7,8 @@ The receiving side (site ingestion API) recomputes the signature over the
 raw bytes it received and rejects the request on mismatch or on a timestamp
 outside the replay window (docs/14 §2, §5).
 
-Key rotation (the "v1" in OD-04) is not implemented yet: `SiteConnection`
-holds a single secret. Rotation support is future work, not a Stage 1B gap.
+The key identifier is transported separately from the signed bytes. It selects
+an active or overlap verification key; it is not secret.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import hmac
 SIGNATURE_VERSION = "v1"
 
 SIGNATURE_VERSION_HEADER = "X-Signature-Version"
+SIGNING_KEY_ID_HEADER = "X-Signing-Key-Id"
 SIGNATURE_HEADER = "X-Signature"
 TIMESTAMP_HEADER = "X-Timestamp"
 NONCE_HEADER = "X-Nonce"

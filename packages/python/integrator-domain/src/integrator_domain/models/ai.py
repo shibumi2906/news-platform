@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
-from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -57,6 +57,9 @@ class AIOperationRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     provider: Mapped[str] = mapped_column(String(64))
     model: Mapped[str] = mapped_column(String(128))
     prompt_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prompt_version.id"))
+    ai_config_release_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ai_config_release.id"), default=None
+    )
     status: Mapped[str] = mapped_column(String(32))
     input_hash: Mapped[str] = mapped_column(String(64))
     output: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, default=None)
@@ -128,6 +131,22 @@ class ExtractedEntity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     kind: Mapped[str] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(512))
     normalized_name: Mapped[str] = mapped_column(String(512))
+    confidence: Mapped[float] = mapped_column(Float)
+    ai_operation_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ai_operation_run.id"))
+
+
+class ExtractedGeography(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "extracted_geography"
+    __table_args__ = (Index("ix_extracted_geography_material", "source_material_id"),)
+
+    source_material_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_material.id"))
+    country: Mapped[str | None] = mapped_column(String(255), default=None)
+    country_code: Mapped[str | None] = mapped_column(String(2), default=None)
+    state_or_region: Mapped[str | None] = mapped_column(String(255), default=None)
+    state_or_region_code: Mapped[str | None] = mapped_column(String(64), default=None)
+    metro: Mapped[str | None] = mapped_column(String(255), default=None)
+    city: Mapped[str | None] = mapped_column(String(255), default=None)
+    district: Mapped[str | None] = mapped_column(String(255), default=None)
     confidence: Mapped[float] = mapped_column(Float)
     ai_operation_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ai_operation_run.id"))
 

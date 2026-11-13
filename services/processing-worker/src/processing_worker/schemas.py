@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class RelevanceMatch(BaseModel):
@@ -31,9 +31,37 @@ class EntityOutput(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
+class GeographyOutput(BaseModel):
+    country: str | None = None
+    country_code: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
+    state_or_region: str | None = None
+    state_or_region_code: str | None = None
+    metro: str | None = None
+    city: str | None = None
+    district: str | None = None
+    confidence: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def require_location(self) -> GeographyOutput:
+        if not any(
+            (
+                self.country,
+                self.country_code,
+                self.state_or_region,
+                self.state_or_region_code,
+                self.metro,
+                self.city,
+                self.district,
+            )
+        ):
+            raise ValueError("geography requires at least one location field")
+        return self
+
+
 class ExtractionOutput(BaseModel):
     facts: list[FactOutput]
     entities: list[EntityOutput]
+    geographies: list[GeographyOutput] = Field(default_factory=list)
     dates: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     event_key: str = Field(min_length=1, max_length=512)

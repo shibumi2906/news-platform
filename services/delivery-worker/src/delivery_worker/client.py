@@ -21,10 +21,14 @@ from common.signing import (
     SIGNATURE_HEADER,
     SIGNATURE_VERSION,
     SIGNATURE_VERSION_HEADER,
+    SIGNING_KEY_ID_HEADER,
     TIMESTAMP_HEADER,
     sign,
 )
 from common.time import to_iso8601, utc_now
+from contracts.ingestion import IncomingPackageReceipt
+from contracts.package import CanonicalNewsPackageEnvelope
+from pydantic import ValidationError
 
 #: docs/02 §9: `Site Ingestion API   /api/v1/incoming-news-packages`.
 #: `SiteConnection.delivery_url` is the site instance's base URL.
@@ -49,6 +53,7 @@ async def send_package(
     connection_id: UUID,
     delivery_url: str,
     hmac_secret: str,
+    signing_key_id: str = "legacy",
     idempotency_key: str,
     body: bytes,
     timeout_seconds: float,
@@ -64,6 +69,7 @@ async def send_package(
         "Content-Type": "application/json",
         CONNECTION_ID_HEADER: str(connection_id),
         SIGNATURE_VERSION_HEADER: SIGNATURE_VERSION,
+        SIGNING_KEY_ID_HEADER: signing_key_id,
         SIGNATURE_HEADER: signature,
         TIMESTAMP_HEADER: timestamp,
         NONCE_HEADER: nonce,
@@ -87,6 +93,13 @@ async def send_package(
             return DeliveryResult(status="failed", error=last_error)
 
         if response.status_code in (200, 201, 202):
+            acknowledgement_error = _validate_acknowledgement(response, body)
+            if acknowledgement_error is not None:
+                return DeliveryResult(
+                    status="failed",
+                    response_status_code=response.status_code,
+                    error=acknowledgement_error,
+                )
             return DeliveryResult(status="delivered", response_status_code=response.status_code)
 
         if response.status_code in _RETRYABLE_STATUS_CODES:
@@ -115,3 +128,22 @@ def _parse_retry_after(value: str | None) -> float:
         return max(float(value), 0.0)
     except ValueError:
         return _DEFAULT_RETRY_AFTER_SECONDS
+
+
+def _validate_acknowledgement(response: httpx.Response, body: bytes) -> str | None:
+    # Body-less success remains compatible with existing asynchronous receivers;
+    # every acknowledgement body that is present is validated strictly.
+    if not response.content:
+        return None
+    try:
+        sent = CanonicalNewsPackageEnvelope.model_validate_json(body)
+        receipt = IncomingPackageReceipt.model_validate_json(response.content)
+    except ValidationError:
+        return "invalid_acknowledgement"
+    if (
+        receipt.package_id != sent.package_id
+        or receipt.package_version != sent.package_version
+        or receipt.status not in {"accepted", "duplicate"}
+    ):
+        return "inconsistent_acknowledgement"
+    return None

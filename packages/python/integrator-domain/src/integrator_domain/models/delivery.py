@@ -8,10 +8,11 @@ retrying a delivery.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -21,6 +22,7 @@ class Delivery(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint(
             "connection_id", "idempotency_key", name="uq_delivery_connection_idempotency"
         ),
+        Index("ix_delivery_status_next_attempt", "status", "next_attempt_at"),
     )
 
     package_id: Mapped[uuid.UUID]
@@ -28,6 +30,15 @@ class Delivery(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("site_connection.id"))
     idempotency_key: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    dead_lettered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    last_error: Mapped[str | None] = mapped_column(String(255), default=None)
+    manual_retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    attempt_budget_used: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class DeliveryAttempt(Base, UUIDPrimaryKeyMixin, TimestampMixin):

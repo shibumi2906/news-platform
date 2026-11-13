@@ -119,6 +119,17 @@ def _gateway() -> AIGateway:
             {"kind": "place", "name": "Europe", "confidence": 0.8},
             {"kind": "date", "name": "2026-08-07", "confidence": 1.0},
         ],
+        "geographies": [
+            {
+                "country": "United States",
+                "country_code": "US",
+                "state_or_region": "Texas",
+                "state_or_region_code": "TX",
+                "city": "Dallas",
+                "confidence": 0.91,
+            },
+            {"country_code": "GB", "city": "London", "confidence": 0.8},
+        ],
         "dates": ["2026-08-07"],
         "tags": ["space"],
         "event_key": "acme-rocket-2026-08-07",
@@ -160,6 +171,12 @@ async def test_two_materials_cluster_into_versioned_draft_with_provenance(
         assert packages[0].package_id == packages[1].package_id
         assert len(packages[1].sources) == 2
         assert packages[1].content["lead"]
+        assert packages[0].operation == "created" and packages[1].operation == "updated"
+        assert packages[1].topics[0]["slug"] == "space"
+        assert packages[1].categories[0]["slug"] == "launch"
+        assert {item["city"] for item in packages[1].geographies} == {"Dallas", "London"}
+        assert packages[1].regions == []
+        assert packages[1].ai_provenance
         assert await session.scalar(select(func.count()).select_from(DraftProvenance)) == 3
         runs = (await session.execute(select(AIOperationRun))).scalars().all()
         assert len(runs) == 6

@@ -9,11 +9,15 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "common",
     "integrator-domain",
+    "processing-worker",
+    "source-worker",
 ]
 
 [tool.uv.sources]
 common = { workspace = true }
 integrator-domain = { workspace = true }
+processing-worker = { workspace = true }
+source-worker = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

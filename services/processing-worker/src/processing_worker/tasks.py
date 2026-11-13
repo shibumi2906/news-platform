@@ -34,7 +34,7 @@ async def _process_pending_events() -> dict[str, int]:
             session_factory,
             instance_id=UUID(settings.instance_id),
             batch_size=settings.batch_size,
-            gateway=build_configured_gateway(settings),
+            gateway=build_configured_gateway(settings, session_factory),
         )
     finally:
         await engine.dispose()

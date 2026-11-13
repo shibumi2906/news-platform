@@ -34,3 +34,36 @@ Admin: session/OIDC + RBAC/CSRF policy. Integrator→Site: connection credential
 
 Schema/contract tests, auth/RBAC negatives, replay, idempotency, pagination, large payload, unsupported version, timeout и backward compatibility. Генерируемые clients проходят CI; документация содержит примеры без секретов.
 
+## 8. Реализованный Integrator contract 1.1
+
+`CanonicalNewsPackageEnvelope` 1.1 является additive расширением 1.0. Он добавляет `operation`, `revision_reason`, typed topics/categories/geographies/media, расширенный source provenance и `ai_provenance`. Site принимает только точные версии 1.0 и 1.1 и хранит каждую версию immutable.
+
+Control-plane endpoints находятся под `/api/v1/admin/integration`: package revisions, bounded/idempotent replay with status, dead-letter listing/manual retry и signing-key rotation. Integrator→Site запрос включает `Idempotency-Key`, `X-Integrator-Instance-Id`, `X-Signing-Key-Id`, `X-Timestamp` и `X-Signature`. Полная wire/runbook спецификация находится в `NEWS_INTEGRATOR_INTERFACE.md`.
+
+## Downstream sites that request materials
+
+In **Admin → Selected materials → Connected sites**, set the delivery mode of
+an existing registered connection to **Site requests materials**. Connections
+use the existing ID and HMAC key provisioning. Keep the shared key on the
+downstream server. The push worker skips connections in pull mode.
+
+Send a server-to-server `POST /integrator-api/api/v1/site-feed/materials` with
+`Content-Type: application/json`. Example body: `{"topic":"texas-news","limit":50}`.
+Use the topic slug configured in the integrator. The response contains canonical
+package versions in ascending order and a `cursor` to send back verbatim with
+the same topic. Persist each topic cursor after processing the page. Repeat
+while `has_more` is true and poll periodically for new versions. Handle
+correction and withdrawal operations, and deduplicate by package ID and version.
+Start with an empty cursor to replay a topic. The Connected sites view shows the
+time of the latest successful request.
+
+Send `X-Connection-Id`, `X-Signing-Key-Id`, `X-Timestamp` (UTC ISO 8601),
+`X-Nonce` (a fresh UUID per request) and `X-Signature`. Compute the signature
+using HMAC-SHA256 with the connection secret and the exact bytes
+`timestamp + "\n" + nonce + "\nsite-feed/materials\n" + body`. Use the lowercase
+hex digest. Requests outside the five-minute window and reused nonces are rejected.
+A reverse proxy needs to route this endpoint to the integrator API. The bundled
+Caddy config contains the route.
+
+For YouTube channel and playlist sources, set `YOUTUBE_API_KEY` in the deploy
+environment. **Check source** shows titles and descriptions from public videos.

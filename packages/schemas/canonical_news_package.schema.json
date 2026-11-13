@@ -1,5 +1,96 @@
 {
   "$defs": {
+    "PackageAIProvenance": {
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "operation": {
+          "title": "Operation",
+          "type": "string"
+        },
+        "operation_run_id": {
+          "format": "uuid",
+          "title": "Operation Run Id",
+          "type": "string"
+        },
+        "prompt_version_id": {
+          "format": "uuid",
+          "title": "Prompt Version Id",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "release_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Release Id"
+        }
+      },
+      "required": [
+        "operation_run_id",
+        "operation",
+        "provider",
+        "model",
+        "prompt_version_id"
+      ],
+      "title": "PackageAIProvenance",
+      "type": "object"
+    },
+    "PackageCategory": {
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "parent_slug": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Slug"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        },
+        "topic_id": {
+          "format": "uuid",
+          "title": "Topic Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "topic_id"
+      ],
+      "title": "PackageCategory",
+      "type": "object"
+    },
     "PackageConfidence": {
       "properties": {
         "overall": {
@@ -98,8 +189,317 @@
       "title": "PackageContent",
       "type": "object"
     },
+    "PackageGeography": {
+      "properties": {
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "City"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Country"
+        },
+        "country_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Country Code"
+        },
+        "district": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "District"
+        },
+        "metro": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metro"
+        },
+        "source": {
+          "enum": [
+            "ai",
+            "configured"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "source_material_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Material Id"
+        },
+        "state_or_region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State Or Region"
+        },
+        "state_or_region_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State Or Region Code"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "PackageGeography",
+      "type": "object"
+    },
+    "PackageMedia": {
+      "properties": {
+        "attribution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribution"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        },
+        "external_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Id"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height"
+        },
+        "mime_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mime Type"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "rights_hint": {
+          "default": "link_only",
+          "title": "Rights Hint",
+          "type": "string"
+        },
+        "source_material_id": {
+          "format": "uuid",
+          "title": "Source Material Id",
+          "type": "string"
+        },
+        "source_url": {
+          "title": "Source Url",
+          "type": "string"
+        },
+        "thumbnail_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thumbnail Url"
+        },
+        "type": {
+          "enum": [
+            "image",
+            "video"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        }
+      },
+      "required": [
+        "type",
+        "source_url",
+        "source_material_id"
+      ],
+      "title": "PackageMedia",
+      "type": "object"
+    },
     "PackageSourceRef": {
       "properties": {
+        "adapter_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adapter Type"
+        },
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author"
+        },
+        "canonical_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canonical Url"
+        },
+        "content_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Hash"
+        },
         "external_id": {
           "title": "External Id",
           "type": "string"
@@ -124,6 +524,18 @@
           "title": "Source Material Id",
           "type": "string"
         },
+        "source_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Name"
+        },
         "url": {
           "title": "Url",
           "type": "string"
@@ -139,9 +551,54 @@
       ],
       "title": "PackageSourceRef",
       "type": "object"
+    },
+    "PackageTopic": {
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "slug"
+      ],
+      "title": "PackageTopic",
+      "type": "object"
     }
   },
   "properties": {
+    "ai_provenance": {
+      "items": {
+        "$ref": "#/$defs/PackageAIProvenance"
+      },
+      "title": "Ai Provenance",
+      "type": "array"
+    },
+    "categories": {
+      "items": {
+        "$ref": "#/$defs/PackageCategory"
+      },
+      "title": "Categories",
+      "type": "array"
+    },
     "confidence": {
       "$ref": "#/$defs/PackageConfidence"
     },
@@ -179,6 +636,13 @@
       "title": "Facts",
       "type": "array"
     },
+    "geographies": {
+      "items": {
+        "$ref": "#/$defs/PackageGeography"
+      },
+      "title": "Geographies",
+      "type": "array"
+    },
     "instance_id": {
       "format": "uuid",
       "title": "Instance Id",
@@ -193,11 +657,22 @@
     },
     "media": {
       "items": {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/$defs/PackageMedia"
       },
       "title": "Media",
       "type": "array"
+    },
+    "operation": {
+      "default": "created",
+      "enum": [
+        "created",
+        "updated",
+        "corrected",
+        "retracted",
+        "deleted"
+      ],
+      "title": "Operation",
+      "type": "string"
     },
     "package_id": {
       "format": "uuid",
@@ -215,13 +690,25 @@
       "title": "Regions",
       "type": "array"
     },
+    "revision_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Revision Reason"
+    },
     "rights": {
       "additionalProperties": true,
       "title": "Rights",
       "type": "object"
     },
     "schema_version": {
-      "default": "1.0",
+      "default": "1.1",
       "title": "Schema Version",
       "type": "string"
     },
@@ -237,6 +724,13 @@
         "type": "string"
       },
       "title": "Taxonomy",
+      "type": "array"
+    },
+    "topics": {
+      "items": {
+        "$ref": "#/$defs/PackageTopic"
+      },
+      "title": "Topics",
       "type": "array"
     },
     "updated_at": {

@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Protocol
+from uuid import UUID
 
 from common.logging import get_logger
 
@@ -40,6 +41,8 @@ class GatewayResponse:
     estimated_cost_usd: float
     latency_ms: int
     attempts: int
+    release_id: UUID | None = None
+    prompt_version_id: UUID | None = None
 
 
 class AIProvider(Protocol):
@@ -126,6 +129,10 @@ class AIGateway:
                         attempt=attempt,
                         error_code=exc.code,
                     )
+                    if exc.code == "budget_exceeded":
+                        raise AIGatewayError(
+                            exc.code, provider=provider.name, model=provider.model
+                        ) from exc
                     if not exc.retryable or attempt == self._max_attempts:
                         break
                     await self._sleep(float(2 ** (attempt - 1)))
@@ -143,9 +150,11 @@ class FakeAIProvider:
         responses: Mapping[str, dict[str, Any]] | None = None,
         *,
         failures: Mapping[str, int] | None = None,
+        model: str = "deterministic-v1",
     ) -> None:
         self._responses = dict(responses or {})
         self._failures = dict(failures or {})
+        self.model = model
 
     async def complete(self, request: AIRequest) -> ProviderResponse:
         remaining = self._failures.get(request.operation, 0)

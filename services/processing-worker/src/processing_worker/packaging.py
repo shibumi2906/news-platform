@@ -15,9 +15,14 @@ from common.ids import new_uuid
 from common.time import utc_now
 from contracts.package import (
     CanonicalNewsPackageEnvelope,
+    PackageAIProvenance,
+    PackageCategory,
     PackageConfidence,
     PackageContent,
+    PackageGeography,
+    PackageMedia,
     PackageSourceRef,
+    PackageTopic,
 )
 from integrator_domain.models import CanonicalNewsPackage, Event, SourceMaterial
 
@@ -34,6 +39,7 @@ def build_package_envelope(
         instance_id=instance_id,
         event_id=event.id,
         event_stage=event.stage,
+        operation="created",
         content=PackageContent(
             title=material.title,
             excerpt=material.excerpt,
@@ -68,6 +74,12 @@ def build_ai_package_envelope(
     entities: list[dict[str, Any]],
     taxonomy: list[str],
     regions: list[str],
+    topics: list[PackageTopic],
+    categories: list[PackageCategory],
+    geographies: list[PackageGeography],
+    media: list[PackageMedia],
+    ai_provenance: list[PackageAIProvenance],
+    source_refs: list[PackageSourceRef],
     source_language: str,
     source_direction: str,
     language_versions: dict[str, PackageContent],
@@ -82,6 +94,7 @@ def build_ai_package_envelope(
         instance_id=instance_id,
         event_id=event.id,
         event_stage=event.stage,
+        operation="created" if package_version == 1 else "updated",
         content=PackageContent(
             title=draft.title,
             lead=draft.lead,
@@ -97,18 +110,13 @@ def build_ai_package_envelope(
         entities=entities,
         taxonomy=taxonomy,
         regions=regions,
+        topics=topics,
+        categories=categories,
+        geographies=geographies,
         language_versions=language_versions,
-        sources=[
-            PackageSourceRef(
-                source_id=material.source_id,
-                source_material_id=material.id,
-                external_id=material.external_id,
-                url=material.url,
-                published_at=material.published_at,
-                fetched_at=material.fetched_at,
-            )
-            for material in materials
-        ],
+        sources=source_refs,
+        media=media,
+        ai_provenance=ai_provenance,
         confidence=PackageConfidence(
             overall=min([0.9, *[float(fact["confidence"]) for fact in facts]])
         ),
@@ -124,17 +132,23 @@ def envelope_to_row(envelope: CanonicalNewsPackageEnvelope) -> CanonicalNewsPack
         instance_id=envelope.instance_id,
         event_id=envelope.event_id,
         event_stage=envelope.event_stage,
+        operation=envelope.operation,
+        revision_reason=envelope.revision_reason,
         content=envelope.content.model_dump(mode="json"),
         facts=envelope.facts,
         entities=envelope.entities,
         taxonomy=envelope.taxonomy,
         regions=envelope.regions,
+        topics=[item.model_dump(mode="json") for item in envelope.topics],
+        categories=[item.model_dump(mode="json") for item in envelope.categories],
+        geographies=[item.model_dump(mode="json") for item in envelope.geographies],
         sources=[source.model_dump(mode="json") for source in envelope.sources],
         language_versions={
             language: content.model_dump(mode="json")
             for language, content in envelope.language_versions.items()
         },
-        media=envelope.media,
+        media=[item.model_dump(mode="json") for item in envelope.media],
+        ai_provenance=[item.model_dump(mode="json") for item in envelope.ai_provenance],
         rights=envelope.rights,
         confidence=envelope.confidence.model_dump(mode="json"),
         warnings=envelope.warnings,

@@ -18,7 +18,7 @@ from integrator_domain.models import (
     Source,
     SourceMaterial,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 
@@ -189,7 +189,7 @@ async def test_process_pending_deliveries_leaves_event_pending_when_one_connecti
 
         deliveries = (await session.execute(select(Delivery))).scalars().all()
         statuses = {d.status for d in deliveries}
-        assert statuses == {"delivered", "failed"}
+        assert statuses == {"delivered", "retrying"}
 
     # Retry: the already-delivered connection must not be hit again, only
     # the failing one, and this time it succeeds.
@@ -287,3 +287,176 @@ async def test_process_pending_deliveries_is_a_no_op_when_nothing_pending(
     assert stats.retrying == 0
     assert stats.skipped_duplicate == 0
     assert stats.failed == 0
+
+
+async def test_delivery_enters_dead_letter_after_configured_outer_budget(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    package_id, package_version = await _seed_package(session_factory)
+    await _seed_connection(session_factory, delivery_url="https://bad.example.com")
+    outbox_event_id = await _seed_outbox_event(
+        session_factory, package_id=package_id, package_version=package_version
+    )
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500, headers={"Retry-After": "0"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        stats = await process_pending_deliveries(
+            session_factory,
+            client,
+            batch_size=10,
+            http_timeout_seconds=5,
+            max_delivery_attempts=1,
+        )
+    assert stats.dead_lettered == 1
+    assert calls == 3  # bounded retries inside one HTTP delivery call
+    async with session_factory() as session:
+        delivery = (await session.execute(select(Delivery))).scalar_one()
+        outbox = await session.get(OutboxEvent, outbox_event_id)
+        assert delivery.status == "dead_lettered"
+        assert delivery.attempt_budget_used == 1
+        assert outbox is not None and outbox.status == "dead_lettered"
+
+
+async def test_outbox_waits_until_every_connection_is_terminal(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    package_id, package_version = await _seed_package(session_factory)
+    terminal_id = await _seed_connection(
+        session_factory, delivery_url="https://terminal.example.com"
+    )
+    await _seed_connection(session_factory, delivery_url="https://retrying.example.com")
+    outbox_event_id = await _seed_outbox_event(
+        session_factory, package_id=package_id, package_version=package_version
+    )
+    async with session_factory() as session, session.begin():
+        session.add(
+            Delivery(
+                package_id=package_id,
+                package_version=package_version,
+                connection_id=terminal_id,
+                idempotency_key=f"{package_id}:{package_version}",
+                status="dead_lettered",
+                attempt_budget_used=2,
+            )
+        )
+
+    def failing(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "retrying.example.com"
+        return httpx.Response(500, headers={"Retry-After": "0"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(failing)) as client:
+        first = await process_pending_deliveries(
+            session_factory,
+            client,
+            batch_size=10,
+            http_timeout_seconds=5,
+            max_delivery_attempts=2,
+        )
+        second = await process_pending_deliveries(
+            session_factory,
+            client,
+            batch_size=10,
+            http_timeout_seconds=5,
+            max_delivery_attempts=2,
+        )
+    assert first.retrying == 1
+    assert second.dead_lettered == 1
+    async with session_factory() as session:
+        outbox = await session.get(OutboxEvent, outbox_event_id)
+        assert outbox is not None and outbox.status == "dead_lettered"
+        deliveries = list((await session.execute(select(Delivery))).scalars())
+        assert {item.status for item in deliveries} == {"dead_lettered"}
+
+
+async def test_replay_targets_one_connection_and_does_not_duplicate_package_row(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    package_id, package_version = await _seed_package(session_factory)
+    connection_id = await _seed_connection(
+        session_factory, delivery_url="https://site.example.com"
+    )
+    await _seed_outbox_event(
+        session_factory, package_id=package_id, package_version=package_version
+    )
+
+    def accepted(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(202)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(accepted)) as client:
+        await process_pending_deliveries(
+            session_factory, client, batch_size=10, http_timeout_seconds=5
+        )
+    replay_id = uuid.uuid4()
+    async with session_factory() as session, session.begin():
+        session.add(
+            OutboxEvent(
+                event_type=CANONICAL_PACKAGE_CREATED,
+                payload={
+                    "package_id": str(package_id),
+                    "package_version": package_version,
+                    "connection_ids": [str(connection_id)],
+                    "replay_request_id": str(replay_id),
+                },
+            )
+        )
+    calls = 0
+
+    def replayed(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert request.headers["Idempotency-Key"] == f"{package_id}:{package_version}"
+        return httpx.Response(202)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(replayed)) as client:
+        stats = await process_pending_deliveries(
+            session_factory, client, batch_size=10, http_timeout_seconds=5
+        )
+    assert stats.delivered == 1 and calls == 1
+    async with session_factory() as session:
+        assert await session.scalar(select(func.count()).select_from(CanonicalNewsPackage)) == 1
+        deliveries = list((await session.execute(select(Delivery))).scalars())
+        assert len(deliveries) == 2
+        assert any(f":replay:{replay_id}" in item.idempotency_key for item in deliveries)
+
+
+async def test_replay_delivers_a_package_that_connection_previously_missed(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    package_id, package_version = await _seed_package(session_factory)
+    connection_id = await _seed_connection(
+        session_factory, delivery_url="https://late.example.com"
+    )
+    replay_id = uuid.uuid4()
+    async with session_factory() as session, session.begin():
+        session.add(
+            OutboxEvent(
+                event_type=CANONICAL_PACKAGE_CREATED,
+                payload={
+                    "package_id": str(package_id),
+                    "package_version": package_version,
+                    "connection_ids": [str(connection_id)],
+                    "replay_request_id": str(replay_id),
+                },
+            )
+        )
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(202)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        stats = await process_pending_deliveries(
+            session_factory, client, batch_size=10, http_timeout_seconds=5
+        )
+    assert stats.delivered == 1 and calls == 1
+    async with session_factory() as session:
+        delivery = (await session.execute(select(Delivery))).scalar_one()
+        assert delivery.status == "delivered"
+        assert delivery.idempotency_key.endswith(f":replay:{replay_id}")

@@ -17,4 +17,7 @@ class IntegratorConnection(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(255))
     hmac_secret: Mapped[str] = mapped_column(String(255))
+    active_key_id: Mapped[str] = mapped_column(String(64), default="legacy")
+    previous_key_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    previous_hmac_secret: Mapped[str | None] = mapped_column(String(255), default=None)
     is_active: Mapped[bool] = mapped_column(default=True)

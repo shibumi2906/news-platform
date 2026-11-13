@@ -25,14 +25,20 @@ class CanonicalNewsPackage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     instance_id: Mapped[uuid.UUID]
     event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("event.id"))
     event_stage: Mapped[str] = mapped_column(String(32), default="reported")
+    operation: Mapped[str] = mapped_column(String(32), default="created")
+    revision_reason: Mapped[str | None] = mapped_column(String(2000), default=None)
     content: Mapped[dict[str, Any]] = mapped_column(PortableJSON)
     facts: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     entities: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     taxonomy: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     regions: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
+    topics: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
+    categories: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
+    geographies: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     sources: Mapped[list[Any]] = mapped_column(PortableJSON)
     language_versions: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
     media: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
+    ai_provenance: Mapped[list[Any]] = mapped_column(PortableJSON, default=list)
     rights: Mapped[dict[str, Any]] = mapped_column(
         PortableJSON, default=lambda: {"usage": "link_only"}
     )
