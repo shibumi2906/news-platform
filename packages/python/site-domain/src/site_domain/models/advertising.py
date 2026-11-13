@@ -6,8 +6,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
+from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -32,7 +33,7 @@ class AdPlacement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_ad_placement_code"),)
     tenant_id: Mapped[uuid.UUID] = mapped_column(index=True)
     code: Mapped[str] = mapped_column(String(64))
-    allowed_kinds: Mapped[list[str]] = mapped_column(PortableJSON, default=list)
+    allowed_kinds: Mapped[list[str]] = mapped_column(JSON, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -56,7 +57,7 @@ class AdCampaign(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     budget_minor: Mapped[int | None] = mapped_column(Integer, default=None)
     impression_limit: Mapped[int | None] = mapped_column(Integer, default=None)
     click_limit: Mapped[int | None] = mapped_column(Integer, default=None)
-    targeting: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
+    targeting: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class AdCreative(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -67,7 +68,7 @@ class AdCreative(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     kind: Mapped[str] = mapped_column(String(32))
     locale: Mapped[str | None] = mapped_column(String(16), default=None)
     destination_url: Mapped[str] = mapped_column(String(2048))
-    content: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(32), default="draft")
     rights_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None

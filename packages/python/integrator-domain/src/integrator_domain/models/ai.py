@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -71,7 +71,7 @@ class AIEvalSet(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "ai_eval_set"
     operation: Mapped[str] = mapped_column(String(64))
     version: Mapped[int] = mapped_column(Integer)
-    cases: Mapped[list[dict[str, Any]]] = mapped_column(PortableJSON, default=list)
+    cases: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     frozen: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -92,7 +92,7 @@ class AIConfigRelease(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     eval_score: Mapped[float | None] = mapped_column(Float, default=None)
     rollout_percent: Mapped[int] = mapped_column(Integer, default=0)
     previous_release_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("ai_config_release.id"), nullable=True)
-    audit: Mapped[dict[str, Any]] = mapped_column(PortableJSON, default=dict)
+    audit: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class MaterialRelevance(Base, UUIDPrimaryKeyMixin, TimestampMixin):

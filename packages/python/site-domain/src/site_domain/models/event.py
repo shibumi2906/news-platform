@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from common.db import Base, PortableJSON, TimestampMixin, UUIDPrimaryKeyMixin
-from sqlalchemy import String
+from common.db import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from sqlalchemy import JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -14,5 +14,5 @@ class SiteEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     source_event_id: Mapped[uuid.UUID] = mapped_column(unique=True)
     title: Mapped[str] = mapped_column(String(1024))
-    summary: Mapped[str | None] = mapped_column(default=None)
-    taxonomy: Mapped[list[str]] = mapped_column(PortableJSON, default=list)
+    summary: Mapped[str | None] = mapped_column(Text, default=None)
+    taxonomy: Mapped[list[str]] = mapped_column(JSON, default=list)
