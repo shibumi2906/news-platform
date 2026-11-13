@@ -15,7 +15,8 @@ same databases, queue, media and TLS volumes.
   Use a separate off-host destination for backups.
 - Point DNS for the web and Site API domains at this host. Allow inbound TCP
   80 and 443, and keep these ports available for Caddy. Allow outbound access
-  to image and package registries, the ACME CA, the AI provider and your sources.
+  to image and package registries, GitHub, the ACME CA, the AI provider and your
+  sources. The first build compiles MinIO from a pinned upstream revision.
 - Confirm the Docker daemon is reachable with `docker info` and check Compose
   with `docker compose version`. Integrator API is reached inside the stack.
 
