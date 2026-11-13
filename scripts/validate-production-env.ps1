@@ -10,14 +10,17 @@ $missing = @($required | Where-Object { [string]::IsNullOrWhiteSpace([Environmen
 if ($missing.Count -gt 0) { throw "Missing required production variables: $($missing -join ', ')" }
 foreach ($name in $required) {
   $value = [Environment]::GetEnvironmentVariable($name)
-  if ($value -match "change-me" -or ($name -ne "API_ALLOWED_HOSTS" -and $value -match "localhost")) {
+  if ($value -match "change-me|<[^>]+>" -or ($name -ne "API_ALLOWED_HOSTS" -and $value -match "localhost")) {
     throw "Unsafe placeholder detected in $name"
   }
 }
-$integratorId = $null; $siteId = $null
+[Guid]$integratorId = [Guid]::Empty
+[Guid]$siteId = [Guid]::Empty
 if (-not [Guid]::TryParse([Environment]::GetEnvironmentVariable("INTEGRATOR_INSTANCE_ID"), [ref]$integratorId)) { throw "INTEGRATOR_INSTANCE_ID must be a UUID" }
 if (-not [Guid]::TryParse([Environment]::GetEnvironmentVariable("SITE_INSTANCE_ID"), [ref]$siteId)) { throw "SITE_INSTANCE_ID must be a UUID" }
-if ($integratorId -eq $siteId) { throw "INTEGRATOR_INSTANCE_ID and SITE_INSTANCE_ID must differ" }
+if ($integratorId -eq [Guid]::Empty -or $siteId -eq [Guid]::Empty -or $integratorId -eq $siteId) {
+  throw "INTEGRATOR_INSTANCE_ID and SITE_INSTANCE_ID must be distinct nonzero UUIDs"
+}
 if ([Environment]::GetEnvironmentVariable("ADMIN_API_TOKEN").Length -lt 32) {
   throw "ADMIN_API_TOKEN must contain at least 32 characters"
 }
@@ -29,25 +32,32 @@ foreach ($entry in [Environment]::GetEnvironmentVariable("ADMIN_SESSION_KEYS").S
   if ($sessionKeyIds.ContainsKey($Matches[1])) { throw "ADMIN_SESSION_KEYS contains a duplicate key id" }
   $sessionKeyIds[$Matches[1]] = $true
 }
-$hosts = [Environment]::GetEnvironmentVariable("API_ALLOWED_HOSTS").Split(",") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+$hosts = [Environment]::GetEnvironmentVariable("API_ALLOWED_HOSTS").Split(",").Trim() | Where-Object { $_ }
 if ($hosts.Count -eq 0 -or $hosts -contains "*") { throw "API_ALLOWED_HOSTS must be explicit" }
-foreach ($origin in [Environment]::GetEnvironmentVariable("WEB_ORIGIN").Split(",")) {
-  $uri = $null
-  if (-not [Uri]::TryCreate($origin, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne "https") {
-    throw "WEB_ORIGIN must contain absolute HTTPS origins"
-  }
+foreach ($hostName in @("localhost", "site-api", "integrator-api", $env:SITE_API_DOMAIN)) {
+  if ($hosts -notcontains $hostName) { throw "API_ALLOWED_HOSTS must include $hostName" }
 }
-$aiProviders = [Environment]::GetEnvironmentVariable("AI_PROVIDERS")
-if ([string]::IsNullOrWhiteSpace($aiProviders) -or $aiProviders.Split(",") -contains "fake") {
+$webUrl = "https://$env:WEB_DOMAIN"
+if ($env:WEB_ORIGIN -cne $webUrl) {
+  throw "WEB_ORIGIN must be https://WEB_DOMAIN without a trailing slash"
+}
+$aiProviders = $env:AI_PROVIDERS.Split(",").Trim() | Where-Object { $_ }
+if ($aiProviders.Count -eq 0 -or $aiProviders -ccontains "fake") {
   throw "AI_PROVIDERS must name production providers and must not include fake"
 }
-if ($aiProviders.Split(",") -contains "openai" -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("OPENAI_API_KEY"))) {
+if ($aiProviders -contains "openai" -and [string]::IsNullOrWhiteSpace($env:OPENAI_API_KEY)) {
   throw "OPENAI_API_KEY is required when AI_PROVIDERS includes openai"
+}
+if ($env:OPENAI_API_KEY -match '^<[^>]+>$' -or $env:OPENAI_MODEL -match '^<[^>]+>$') {
+  throw "Replace the OPENAI_API_KEY and OPENAI_MODEL placeholders"
 }
 $bootstrapUsername = [Environment]::GetEnvironmentVariable("ADMIN_BOOTSTRAP_USERNAME")
 $bootstrapPassword = [Environment]::GetEnvironmentVariable("ADMIN_BOOTSTRAP_PASSWORD")
 if ([string]::IsNullOrWhiteSpace($bootstrapUsername) -ne [string]::IsNullOrWhiteSpace($bootstrapPassword)) {
   throw "ADMIN_BOOTSTRAP_USERNAME and ADMIN_BOOTSTRAP_PASSWORD must be set together"
+}
+if ($bootstrapUsername -match '^<[^>]+>$' -or $bootstrapPassword -match '^<[^>]+>$') {
+  throw "Replace the ADMIN_BOOTSTRAP_USERNAME and ADMIN_BOOTSTRAP_PASSWORD placeholders"
 }
 if (-not [string]::IsNullOrWhiteSpace($bootstrapPassword) -and $bootstrapPassword.Length -lt 12) {
   throw "ADMIN_BOOTSTRAP_PASSWORD must contain at least 12 characters"

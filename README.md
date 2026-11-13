@@ -43,6 +43,16 @@ lines on stdout only, level via `LOG_LEVEL`, correlation-id propagation via
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - Docker and Docker Compose
 
+## Deploying to a server
+
+Follow the [first production deployment guide](docs/30_FIRST_PRODUCTION_DEPLOYMENT.md).
+It covers server prerequisites, environment setup, HTTPS, administrator login,
+the first Integrator → Site connection and verification through publication.
+The bundled production stack uses Caddy, two PostgreSQL databases, Redis and
+MinIO. It publishes ports 80 and 443. Integrator API stays on the Compose network.
+Use the [production runbook](docs/29_PRODUCTION_HARDENING.md) for backups,
+restore, updates and rollback.
+
 ## Local development
 
 ```bash

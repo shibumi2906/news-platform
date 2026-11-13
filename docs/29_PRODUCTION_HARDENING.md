@@ -53,21 +53,21 @@ environment; Telegram, Facebook, Instagram, TikTok, X and YouTube additionally
 require their respective OAuth/app-review and public media/callback setup.
 
 Compose exposes no database, Redis, MinIO or API port publicly in the production
-overlay.  A reverse proxy is therefore the TLS-termination and routing boundary:
-it must set forwarded headers, enforce an HTTPS canonical host, request-body
-limits and security headers, and route only Public Web/API/webhook paths. Caddy
-is the documented recommendation pending OD-02; this repository intentionally
-does not choose a proxy implementation.
+overlay. The bundled Caddy proxy terminates TLS and forwards the web and Site
+API domains. Integrator API is accessed inside the Compose network.
 
 ## Installation and updates
 
-Validate secrets without printing them, then use the production overlay:
+Load the deployment environment as described in the
+[first deployment guide](30_FIRST_PRODUCTION_DEPLOYMENT.md). From the repository
+root, use the same Compose files and project for install, update and recovery.
+Take a backup before updating.
 
 ```powershell
 ./scripts/validate-production-env.ps1
-./scripts/deploy.ps1 -Action install
-./scripts/deploy.ps1 -Action update
-./scripts/deploy.ps1 -Action rollback -RollbackCompose D:\releases\previous-images.yml
+./scripts/deploy.ps1 -Action install -ProjectName news-platform-prod
+./scripts/deploy.ps1 -Action update -ProjectName news-platform-prod
+./scripts/deploy.ps1 -Action rollback -ProjectName news-platform-prod -RollbackCompose /srv/releases/previous-images.yml
 ```
 
 The overlay requires explicit PostgreSQL, Redis, MinIO, session, service-token,
@@ -85,11 +85,20 @@ compatibility review.
 archive and a SHA-256 manifest. Copy the resulting directory to encrypted,
 off-host storage with retention and access controls.
 
-Restore is destructive and requires both an explicit target and
-`-ConfirmRestore`:
+From the repository root, with the production environment loaded:
 
 ```powershell
-./scripts/restore.ps1 -BackupDirectory D:\secure\backup -Stamp 20260807T120000Z -ConfirmRestore
+$productionFiles = @('deploy/compose/docker-compose.dev.yml', 'deploy/compose/docker-compose.prod.yml')
+./scripts/backup.ps1 -ComposeFiles $productionFiles -ProjectName news-platform-prod -OutputDirectory /srv/secure/news-platform-backups
+```
+
+Restore is destructive and requires both an explicit target and
+`-ConfirmRestore`. The example uses a running, isolated deployment with
+separate domains, credentials and volumes:
+
+```powershell
+./scripts/restore.ps1 -ComposeFiles $productionFiles -ProjectName news-platform-recovery `
+  -BackupDirectory /srv/secure/news-platform-backups -Stamp 20260807T120000Z -ConfirmRestore
 ```
 
 Always restore into an isolated environment first, apply migrations, verify

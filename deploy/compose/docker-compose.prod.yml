@@ -39,13 +39,17 @@ services:
       site-api:
         condition: service_healthy
   postgres-integrator:
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_INTEGRATOR_PASSWORD:?set POSTGRES_INTEGRATOR_PASSWORD}
   postgres-site:
+    restart: unless-stopped
     ports: !reset []
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_SITE_PASSWORD:?set POSTGRES_SITE_PASSWORD}
   redis:
+    restart: unless-stopped
+    volumes: ["redis-data:/data"]
     ports: !reset []
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}", "--appendonly", "yes"]
     healthcheck:
@@ -53,6 +57,7 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
   minio:
+    restart: unless-stopped
     ports: !reset []
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
@@ -62,6 +67,9 @@ services:
   migrate-site:
     environment: *site-production
   integrator-api:
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health/ready"]
     environment:
       <<: *integrator-production
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?set ADMIN_API_TOKEN}
@@ -69,6 +77,9 @@ services:
       SITE_API_URL: http://site-api:8000
     ports: !reset []
   site-api:
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health/ready"]
     environment:
       <<: *site-production
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?set ADMIN_API_TOKEN}
@@ -82,28 +93,47 @@ services:
       DASHBOARD_RETRY_BASE_SECONDS: ${DASHBOARD_RETRY_BASE_SECONDS:-30}
     ports: !reset []
   source-worker:
+    restart: unless-stopped
     environment: *integrator-production
   source-worker-beat:
+    restart: unless-stopped
     environment: *integrator-production
   processing-worker:
+    restart: unless-stopped
     environment:
       <<: *integrator-production
       AI_PROVIDERS: ${AI_PROVIDERS:?set AI_PROVIDERS}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   processing-worker-beat:
+    restart: unless-stopped
     environment:
       <<: *integrator-production
       AI_PROVIDERS: ${AI_PROVIDERS:?set AI_PROVIDERS}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   delivery-worker:
+    restart: unless-stopped
     environment: *integrator-production
   delivery-worker-beat:
+    restart: unless-stopped
     environment: *integrator-production
   distribution-worker:
-    environment: *site-production
+    restart: unless-stopped
+    environment:
+      <<: *site-production
+      DISTRIBUTION_SECRET_TELEGRAM: ${DISTRIBUTION_SECRET_TELEGRAM:-}
+      DISTRIBUTION_SECRET_FACEBOOK: ${DISTRIBUTION_SECRET_FACEBOOK:-}
+      DISTRIBUTION_SECRET_INSTAGRAM: ${DISTRIBUTION_SECRET_INSTAGRAM:-}
+      DISTRIBUTION_SECRET_TIKTOK: ${DISTRIBUTION_SECRET_TIKTOK:-}
+      DISTRIBUTION_SECRET_X: ${DISTRIBUTION_SECRET_X:-}
+      DISTRIBUTION_SECRET_YOUTUBE: ${DISTRIBUTION_SECRET_YOUTUBE:-}
   distribution-worker-beat:
+    restart: unless-stopped
     environment: *site-production
   public-web:
+    restart: unless-stopped
+    build:
+      args:
+        NEXT_PUBLIC_WEB_URL: ${WEB_ORIGIN:?set WEB_ORIGIN}
     environment:
       NEXT_PUBLIC_WEB_URL: ${WEB_ORIGIN:?set WEB_ORIGIN}
       NEXT_PUBLIC_PORTAL_THEME: ${NEXT_PUBLIC_PORTAL_THEME:-editorial}
@@ -111,5 +141,6 @@ services:
     ports: !reset []
 
 volumes:
+  redis-data:
   caddy-data:
   caddy-config:
